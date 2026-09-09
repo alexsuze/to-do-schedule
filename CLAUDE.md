@@ -31,6 +31,7 @@ backend/    src/main/java/com/todoschedule/{config,controller,model,repository,s
 # 前端
 cd frontend && npm install && npm run dev      # http://localhost:5173
 cd frontend && npm run build                    # 驗證可建置
+cd frontend && npm test                         # utils 純函式測試（Node 內建）
 # 後端（本機無 mvn，用 wrapper；本機 Java 26 可執行，目標版本 21）
 cd backend && ./mvnw spring-boot:run            # Windows: mvnw.cmd
 cd backend && ./mvnw -q -DskipTests package     # 驗證可打包

@@ -32,13 +32,25 @@ export const useTasksStore = defineStore('tasks', {
         return data
       } catch (e) { notifyError(e) }
     },
-    // fields：title, description, priority, start_date, due_at, tags（完整覆寫）
+    // fields：title, description, priority, start_at, due_at, tags（完整覆寫）
     async update (id, fields) {
       try {
         const { data } = await api.put(`/tasks/${id}`, fields)
         this.replace(data)
         return data
       } catch (e) { notifyError(e) }
+    },
+    // 行內修改單一欄位：後端 update 為完整覆寫，故帶上原值
+    patch (task, changes) {
+      return this.update(task.id, {
+        title: task.title,
+        description: task.description,
+        priority: task.priority,
+        start_at: task.start_at,
+        due_at: task.due_at,
+        tags: task.tags,
+        ...changes
+      })
     },
     // 移動後其他卡片的 order 也會變，直接重新載入最省事
     async move (id, { boardId = null, columnId, index = null }) {
