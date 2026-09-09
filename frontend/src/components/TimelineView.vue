@@ -2,7 +2,7 @@
   <div>
     <div class="row items-center q-gutter-sm q-mb-sm">
       <q-btn flat dense icon="today" label="回到今天" @click="scrollToToday" />
-      <span class="text-caption text-grey">唯讀，點擊長條可編輯；捲到兩端可顯示更多日期</span>
+      <span class="text-caption text-grey">唯讀，點擊長條可編輯；捲到兩端可顯示更多日期；不顯示已完成事項</span>
     </div>
 
     <!-- ponytail: 純 CSS 甘特圖，每天固定像素寬；預設今天前 5 天、後 25 天，兩端可各加 10 天 -->
@@ -93,8 +93,10 @@ const diffDays = (a, b) => Math.round((startOfDay(b) - startOfDay(a)) / DAY)
 const today = startOfDay(new Date())
 const WEEKDAY = ['日', '一', '二', '三', '四', '五', '六']
 
-const scheduled = computed(() => props.tasks.filter(t => t.start_at || t.due_at))
-const unscheduled = computed(() => props.tasks.filter(t => !t.start_at && !t.due_at))
+// 已完成的事項不顯示
+const active = computed(() => props.tasks.filter(t => !t.completed_at))
+const scheduled = computed(() => active.value.filter(t => t.start_at || t.due_at))
+const unscheduled = computed(() => active.value.filter(t => !t.start_at && !t.due_at))
 const boardOf = t => props.boards.find(b => b.id === t.board_id)
 const columnName = t => boardOf(t)?.columns.find(c => c.id === t.column_id)?.name || ''
 const label = t => props.showBoard ? `(${(boardOf(t)?.name || '').slice(0, 2)})${t.title}` : t.title
