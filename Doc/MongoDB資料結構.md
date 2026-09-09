@@ -99,11 +99,19 @@
 | `due_at` | Date / null | 否 | 到期日期時間（UTC），時程表終點，亦為通知依據；不可早於 `start_at` |
 | `order` | Int | 是 | 同一欄位內的排序 |
 | `tags` | Array\<String\> | 是 | 標籤，可為空陣列 |
+| `checklist` | Array\<ChecklistItem\> | 是 | 事項內的待辦清單，可為空陣列（2026-09-09 新增），結構見下表 |
 | `notification_override` | Object / null | 否 | 事項專屬通知設定；null 表示沿用全域設定，結構見下表 |
 | `completed_at` | Date / null | 系統 | 移入完成類型欄位時自動填入，移出時清除 |
 | `deleted_at` | Date / null | 系統 | 軟刪除時間 |
 | `created_at` | Date | 系統 | 建立時間 |
 | `updated_at` | Date | 系統 | 最後修改時間 |
+
+### ChecklistItem（內嵌於 tasks.checklist）
+
+| 欄位 | 型別 | 用途 |
+|------|------|------|
+| `text` | String | 項目名稱，1～100 字 |
+| `done` | Boolean | 是否已勾選 |
 
 ### notification_override（內嵌於 tasks）
 

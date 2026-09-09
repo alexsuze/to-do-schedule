@@ -20,6 +20,14 @@ export function priorityColor (p) {
 
 const pad = n => String(n).padStart(2, '0')
 
+// 底色深時文字用白色
+export function textOn (hex) {
+  if (!hex) return '#000'
+  const n = parseInt(hex.slice(1), 16)
+  const lum = (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255
+  return lum < 0.6 ? '#fff' : '#000'
+}
+
 // ponytail: 以瀏覽器時區顯示，設定檔時區留到階段 5
 export function formatDue (iso) {
   if (!iso) return ''

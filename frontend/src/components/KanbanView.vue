@@ -60,6 +60,10 @@
                     <span v-if="t.due_at" class="text-caption" :class="dueClass(t)">
                       <q-icon name="schedule" size="xs" /> {{ formatDue(t.due_at) }}
                     </span>
+                    <span v-if="t.checklist?.length" class="text-caption"
+                      :class="t.checklist.every(i => i.done) ? 'text-positive' : 'text-grey-7'">
+                      <q-icon name="checklist" size="xs" /> {{ t.checklist.filter(i => i.done).length }}/{{ t.checklist.length }}
+                    </span>
                     <q-chip v-for="tag in t.tags" :key="tag" dense size="sm" color="grey-3">{{ tag }}</q-chip>
                   </div>
                 </q-card-section>
@@ -95,7 +99,7 @@ import { useQuasar } from 'quasar'
 import draggable from 'vuedraggable'
 import { useBoardsStore } from '../stores/boards'
 import { useTasksStore } from '../stores/tasks'
-import { priorityColor, formatDue, dueState } from '../utils/task'
+import { priorityColor, formatDue, dueState, textOn } from '../utils/task'
 import ColorDialog from './ColorDialog.vue'
 
 const props = defineProps({
@@ -116,12 +120,8 @@ const adding = ref(null)
 const newTitle = ref('')
 const coloring = ref(null)
 
-// 底色深時文字改白
 function headerStyle (c) {
-  if (!c.color) return {}
-  const n = parseInt(c.color.slice(1), 16)
-  const lum = (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255
-  return { background: c.color, color: lum < 0.6 ? '#fff' : '#000' }
+  return c.color ? { background: c.color, color: textOn(c.color) } : {}
 }
 
 watch(() => props.board.columns, cols => { columns.value = [...(cols || [])] }, { immediate: true, deep: true })

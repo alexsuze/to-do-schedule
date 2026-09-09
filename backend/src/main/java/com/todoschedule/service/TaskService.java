@@ -3,6 +3,7 @@ package com.todoschedule.service;
 import com.todoschedule.model.Board;
 import com.todoschedule.model.Board.Column;
 import com.todoschedule.model.Task;
+import com.todoschedule.model.Task.ChecklistItem;
 import com.todoschedule.model.Task.NotificationOverride;
 import com.todoschedule.repository.TaskRepository;
 import org.springframework.http.HttpStatus;
@@ -24,7 +25,8 @@ public class TaskService {
     /** 編輯視窗一次送完整欄位，null 即清空。 */
     public record TaskRequest(String title, String description, String priority,
                               Instant startAt, Instant dueAt, List<String> tags,
-                              NotificationOverride notificationOverride) {}
+                              NotificationOverride notificationOverride,
+                              List<ChecklistItem> checklist) {}
 
     /** board_id 省略表示同看板；index 省略表示放到欄位最後。 */
     public record MoveRequest(String boardId, String columnId, Integer index) {}
@@ -84,6 +86,14 @@ public class TaskService {
         t.dueAt = req.dueAt();
         t.tags = req.tags() == null ? new ArrayList<>()
                 : req.tags().stream().map(String::strip).filter(s -> !s.isEmpty()).distinct().toList();
+        t.checklist = new ArrayList<>();
+        for (ChecklistItem item : req.checklist() == null ? List.<ChecklistItem>of() : req.checklist()) {
+            if (item.text == null || item.text.isBlank()) continue; // 空白項目直接略過
+            ChecklistItem c = new ChecklistItem();
+            c.text = BoardService.requireName(item.text, 100, "待辦項目");
+            c.done = item.done;
+            t.checklist.add(c);
+        }
         if (req.notificationOverride() != null) {
             SettingsService.validLeadTimes(req.notificationOverride().leadTimes);
         }

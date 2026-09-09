@@ -93,10 +93,10 @@ class TaskServiceTest {
         Instant start = Instant.parse("2026-09-10T01:00:00Z");
         Instant before = Instant.parse("2026-09-10T00:30:00Z");
         assertThrows(ResponseStatusException.class, () ->
-                service.update(a.id, new TaskRequest("A", null, "high", start, before, null, null)));
+                service.update(a.id, new TaskRequest("A", null, "high", start, before, null, null, null)));
 
         Task u = service.update(a.id, new TaskRequest(" 標題 ", "  ", "low", start,
-                Instant.parse("2026-09-10T15:00:00Z"), List.of(" x ", "x", "", "y"), null));
+                Instant.parse("2026-09-10T15:00:00Z"), List.of(" x ", "x", "", "y"), null, null));
         assertEquals("標題", u.title);
         assertNull(u.description);
         assertEquals("low", u.priority);

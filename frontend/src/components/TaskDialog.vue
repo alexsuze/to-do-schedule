@@ -25,6 +25,25 @@
             :hint="pastDueHint" />
         </div>
 
+        <div>
+          <div class="text-subtitle2 q-mb-xs">
+            待辦清單
+            <span v-if="form.checklist.length" class="text-caption text-grey">
+              （{{ form.checklist.filter(i => i.done).length }}/{{ form.checklist.length }}）
+            </span>
+          </div>
+          <div v-for="(item, i) in form.checklist" :key="i" class="row items-center no-wrap q-gutter-x-xs">
+            <q-checkbox v-model="item.done" dense />
+            <q-input v-model="item.text" dense borderless class="col" maxlength="100"
+              :class="{ 'text-strike text-grey': item.done }" @keyup.enter="focusNewItem" />
+            <q-btn flat dense round size="sm" icon="close" @click="form.checklist.splice(i, 1)" />
+          </div>
+          <q-input ref="newItemInput" v-model="newItem" dense outlined placeholder="新增待辦項目，按 Enter 加入" maxlength="100"
+            class="q-mt-xs" @keyup.enter="addItem">
+            <template #prepend><q-icon name="add" /></template>
+          </q-input>
+        </div>
+
         <q-select v-model="form.tags" label="標籤" multiple use-input use-chips new-value-mode="add-unique"
           hide-dropdown-icon hint="輸入後按 Enter 新增" />
 
@@ -70,6 +89,16 @@ const tasks = useTasksStore()
 const open = ref(false)
 const saving = ref(false)
 const form = ref({})
+const newItem = ref('')
+const newItemInput = ref(null)
+
+function addItem () {
+  const text = newItem.value.trim()
+  if (!text) return
+  form.value.checklist.push({ text, done: false })
+  newItem.value = ''
+}
+function focusNewItem () { newItemInput.value?.focus() }
 
 watch(() => props.task, t => {
   if (!t) { open.value = false; return }
@@ -82,6 +111,7 @@ watch(() => props.task, t => {
     start_local: isoToLocal(t.start_at),
     due_local: isoToLocal(t.due_at),
     tags: [...(t.tags || [])],
+    checklist: (t.checklist || []).map(i => ({ ...i })),
     notify_mode: !t.notification_override ? 'default' : (t.notification_override.enabled ? 'custom' : 'off'),
     lead_times: [...(t.notification_override?.lead_times || [])]
   }
@@ -103,6 +133,7 @@ const pastDueHint = computed(() => {
 
 async function save () {
   if (!form.value.title?.trim()) return
+  addItem() // 輸入框還有字就一併加入
   saving.value = true
   try {
     const t = props.task
@@ -113,6 +144,7 @@ async function save () {
       start_at: localToIso(form.value.start_local),
       due_at: localToIso(form.value.due_local),
       tags: form.value.tags,
+      checklist: form.value.checklist,
       notification_override: notificationOverride()
     })
     if (form.value.board_id !== t.board_id || form.value.column_id !== t.column_id) {

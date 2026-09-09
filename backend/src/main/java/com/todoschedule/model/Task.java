@@ -32,6 +32,8 @@ public class Task {
     public Instant dueAt;
     public int order;
     public List<String> tags = new ArrayList<>();
+    /** 事項內的待辦清單（checkbox + 名稱）。 */
+    public List<ChecklistItem> checklist = new ArrayList<>();
     /** null 表示沿用全域設定；設定介面於階段 5 實作。 */
     @Field("notification_override")
     public NotificationOverride notificationOverride;
@@ -45,6 +47,11 @@ public class Task {
     @LastModifiedDate
     @Field("updated_at")
     public Instant updatedAt;
+
+    public static class ChecklistItem {
+        public String text;
+        public boolean done;
+    }
 
     public static class NotificationOverride {
         public boolean enabled = true;

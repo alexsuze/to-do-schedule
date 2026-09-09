@@ -59,6 +59,7 @@ export const useTasksStore = defineStore('tasks', {
         start_at: task.start_at,
         due_at: task.due_at,
         tags: task.tags,
+        checklist: task.checklist,
         notification_override: task.notification_override,
         ...changes
       })

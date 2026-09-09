@@ -23,7 +23,7 @@
           <div class="tl-body">
             <div class="tl-today" :style="{ left: LABEL_W + todayX + 'px' }" />
             <div v-for="t in scheduled" :key="t.id" class="tl-row">
-              <div class="tl-label cursor-pointer" @click="$emit('edit', t)">
+              <div class="tl-label cursor-pointer" :style="labelStyle(t)" @click="$emit('edit', t)">
                 <span class="ellipsis">{{ label(t) }}</span>
                 <span v-if="outOfRange(t)" class="text-caption text-grey q-ml-xs">（範圍外）</span>
               </div>
@@ -54,7 +54,7 @@
     <div v-if="unscheduled.length" class="q-mt-md">
       <div class="text-subtitle1 q-mb-xs">未排程 <q-badge color="grey-5">{{ unscheduled.length }}</q-badge></div>
       <q-list bordered separator dense>
-        <q-item v-for="t in unscheduled" :key="t.id" clickable @click="$emit('edit', t)">
+        <q-item v-for="t in unscheduled" :key="t.id" clickable :style="labelStyle(t)" @click="$emit('edit', t)">
           <q-item-section avatar><q-badge :color="priorityColor(t.priority)" rounded /></q-item-section>
           <q-item-section :class="{ 'text-strike text-grey': t.completed_at }">{{ label(t) }}</q-item-section>
         </q-item>
@@ -65,7 +65,7 @@
 
 <script setup>
 import { computed, nextTick, onMounted, ref } from 'vue'
-import { priorityColor, isoToLocal } from '../utils/task'
+import { priorityColor, isoToLocal, textOn } from '../utils/task'
 
 const props = defineProps({
   boards: { type: Array, required: true }, // 單一看板頁傳 [board]，總時程表傳全部
@@ -129,17 +129,29 @@ function outOfRange (t) {
   return e < rangeStart.value || s > end
 }
 
+// 總時程表：長條與左側名稱套用看板顏色；單一看板頁維持優先度色
+const boardColor = t => (props.showBoard && !t.completed_at) ? boardOf(t)?.color : null
+
 // 超出範圍的部分由 .tl-track 的 overflow hidden 裁掉
 function barStyle (t) {
   const { s, e } = span(t)
+  const c = boardColor(t)
   return {
     left: diffDays(rangeStart.value, s) * PPD + 'px',
-    width: (diffDays(s, e) + 1) * PPD - 2 + 'px'
+    width: (diffDays(s, e) + 1) * PPD - 2 + 'px',
+    ...(c ? { background: c, color: textOn(c) } : {})
   }
 }
 
 function barClass (t) {
+  if (boardColor(t)) return ''
   return t.completed_at ? 'bg-grey-5' : `bg-${priorityColor(t.priority)}`
+}
+
+// 左側名稱底色：看板色加透明度，淡淡的
+function labelStyle (t) {
+  const c = boardColor(t)
+  return c ? { background: c + '33' } : {}
 }
 
 function onScroll () {
