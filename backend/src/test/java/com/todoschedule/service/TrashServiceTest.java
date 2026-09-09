@@ -27,7 +27,7 @@ class TrashServiceTest {
 
     private final BoardRepository boardRepo = mock(BoardRepository.class);
     private final TaskRepository taskRepo = mock(TaskRepository.class);
-    private final TrashService service = new TrashService(taskRepo, boardRepo);
+    private final TrashService service = new TrashService(taskRepo, boardRepo, mock(NotificationService.class));
     private final List<Board> allBoards = new ArrayList<>();
     private final List<Task> allTasks = new ArrayList<>();
 

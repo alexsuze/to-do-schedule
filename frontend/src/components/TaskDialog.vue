@@ -30,6 +30,14 @@
 
         <q-select v-model="form.board_id" :options="boardOptions" label="移至其他看板"
           emit-value map-options />
+
+        <div>
+          <div class="text-subtitle2 q-mb-xs">Email 通知</div>
+          <q-option-group v-model="form.notify_mode" inline
+            :options="[{ label: '沿用全域設定', value: 'default' }, { label: '自訂', value: 'custom' }, { label: '不通知', value: 'off' }]" />
+          <q-select v-if="form.notify_mode === 'custom'" v-model="form.lead_times" :options="LEAD_TIME_OPTIONS"
+            label="此事項的提前時間（可複選）" multiple use-chips emit-value map-options dense />
+        </div>
       </q-card-section>
 
       <q-card-actions align="between">
@@ -48,6 +56,7 @@ import { computed, ref, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import { useBoardsStore } from '../stores/boards'
 import { useTasksStore } from '../stores/tasks'
+import { LEAD_TIME_OPTIONS } from '../stores/settings'
 import { PRIORITIES, isoToLocal, localToIso } from '../utils/task'
 import DateTimeField from './DateTimeField.vue'
 
@@ -72,7 +81,9 @@ watch(() => props.task, t => {
     board_id: t.board_id,
     start_local: isoToLocal(t.start_at),
     due_local: isoToLocal(t.due_at),
-    tags: [...(t.tags || [])]
+    tags: [...(t.tags || [])],
+    notify_mode: !t.notification_override ? 'default' : (t.notification_override.enabled ? 'custom' : 'off'),
+    lead_times: [...(t.notification_override?.lead_times || [])]
   }
   open.value = true
 }, { immediate: true })
@@ -101,7 +112,8 @@ async function save () {
       priority: form.value.priority,
       start_at: localToIso(form.value.start_local),
       due_at: localToIso(form.value.due_local),
-      tags: form.value.tags
+      tags: form.value.tags,
+      notification_override: notificationOverride()
     })
     if (form.value.board_id !== t.board_id || form.value.column_id !== t.column_id) {
       await tasks.move(t.id, { boardId: form.value.board_id, columnId: form.value.column_id })
@@ -110,6 +122,13 @@ async function save () {
   } finally {
     saving.value = false
   }
+}
+
+// null = 沿用全域；{enabled:false} = 不通知；{enabled:true, lead_times} = 自訂
+function notificationOverride () {
+  const m = form.value.notify_mode
+  if (m === 'default') return null
+  return { enabled: m === 'custom', lead_times: m === 'custom' ? form.value.lead_times : [] }
 }
 
 function remove () {

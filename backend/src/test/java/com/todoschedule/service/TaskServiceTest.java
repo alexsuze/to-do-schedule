@@ -28,8 +28,8 @@ class TaskServiceTest {
 
     private final BoardRepository boardRepo = mock(BoardRepository.class);
     private final TaskRepository taskRepo = mock(TaskRepository.class);
-    private final BoardService boards = new BoardService(boardRepo, taskRepo);
-    private final TaskService service = new TaskService(taskRepo, boards);
+    private final BoardService boards = new BoardService(boardRepo, taskRepo, mock(NotificationService.class));
+    private final TaskService service = new TaskService(taskRepo, boards, mock(NotificationService.class));
     private final List<Task> tasks = new ArrayList<>();
     private final Board board;
 
@@ -93,10 +93,10 @@ class TaskServiceTest {
         Instant start = Instant.parse("2026-09-10T01:00:00Z");
         Instant before = Instant.parse("2026-09-10T00:30:00Z");
         assertThrows(ResponseStatusException.class, () ->
-                service.update(a.id, new TaskRequest("A", null, "high", start, before, null)));
+                service.update(a.id, new TaskRequest("A", null, "high", start, before, null, null)));
 
         Task u = service.update(a.id, new TaskRequest(" 標題 ", "  ", "low", start,
-                Instant.parse("2026-09-10T15:00:00Z"), List.of(" x ", "x", "", "y")));
+                Instant.parse("2026-09-10T15:00:00Z"), List.of(" x ", "x", "", "y"), null));
         assertEquals("標題", u.title);
         assertNull(u.description);
         assertEquals("low", u.priority);

@@ -18,8 +18,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 回收桶：列出 / 復原 / 永久刪除 / 30 天自動清理（需求書 3.1.4、3.1.5）。
- * ponytail: 復原後重建通知排程於階段 5 補上。
+ * 回收桶：列出 / 復原 / 永久刪除 / 30 天自動清理（需求書 3.1.4、3.1.5）。復原後重建通知排程。
  */
 @Service
 public class TrashService {
@@ -33,10 +32,12 @@ public class TrashService {
 
     private final TaskRepository tasks;
     private final BoardRepository boards;
+    private final NotificationService notifications;
 
-    public TrashService(TaskRepository tasks, BoardRepository boards) {
+    public TrashService(TaskRepository tasks, BoardRepository boards, NotificationService notifications) {
         this.tasks = tasks;
         this.boards = boards;
+        this.notifications = notifications;
     }
 
     /** boardId 為 null 時列全部看板。 */
@@ -70,7 +71,9 @@ public class TrashService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "所屬看板「" + b.name + "」已刪除，請先復原看板");
         }
         restoreInto(t, b);
-        return tasks.save(t);
+        Task saved = tasks.save(t);
+        notifications.reschedule(saved);
+        return saved;
     }
 
     /** 復原看板，並一併復原與看板同時被刪的事項。 */
@@ -83,6 +86,7 @@ public class TrashService {
         boards.save(b);
         for (Task t : together) restoreInto(t, b);
         tasks.saveAll(together);
+        notifications.rescheduleAll(together);
         return b;
     }
 

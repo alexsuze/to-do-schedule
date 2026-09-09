@@ -3,6 +3,7 @@ package com.todoschedule.service;
 import com.todoschedule.model.Board;
 import com.todoschedule.model.Board.Column;
 import com.todoschedule.model.Task;
+import com.todoschedule.model.Task.NotificationOverride;
 import com.todoschedule.repository.TaskRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -13,8 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 工作事項的業務規則（需求書 3.1、3.3.2）。
- * ponytail: 通知排程 / 取消於階段 5 補上（移入完成欄、刪除、改到期時皆需觸發）。
+ * 工作事項的業務規則（需求書 3.1、3.3.2）。變更後一律呼叫 notifications.reschedule 重算通知。
  */
 @Service
 public class TaskService {
@@ -23,17 +23,20 @@ public class TaskService {
 
     /** 編輯視窗一次送完整欄位，null 即清空。 */
     public record TaskRequest(String title, String description, String priority,
-                              Instant startAt, Instant dueAt, List<String> tags) {}
+                              Instant startAt, Instant dueAt, List<String> tags,
+                              NotificationOverride notificationOverride) {}
 
     /** board_id 省略表示同看板；index 省略表示放到欄位最後。 */
     public record MoveRequest(String boardId, String columnId, Integer index) {}
 
     private final TaskRepository repo;
     private final BoardService boards;
+    private final NotificationService notifications;
 
-    public TaskService(TaskRepository repo, BoardService boards) {
+    public TaskService(TaskRepository repo, BoardService boards, NotificationService notifications) {
         this.repo = repo;
         this.boards = boards;
+        this.notifications = notifications;
     }
 
     public List<Task> list(String boardId) {
@@ -75,7 +78,13 @@ public class TaskService {
         t.dueAt = req.dueAt();
         t.tags = req.tags() == null ? new ArrayList<>()
                 : req.tags().stream().map(String::strip).filter(s -> !s.isEmpty()).distinct().toList();
-        return repo.save(t);
+        if (req.notificationOverride() != null) {
+            SettingsService.validLeadTimes(req.notificationOverride().leadTimes);
+        }
+        t.notificationOverride = req.notificationOverride();
+        Task saved = repo.save(t);
+        notifications.reschedule(saved);
+        return saved;
     }
 
     /** 換欄位 / 換位置 / 跨看板；移入完成類型欄位填 completed_at，移出則清除。 */
@@ -94,6 +103,7 @@ public class TaskService {
         t.completedAt = col.isDoneType ? (t.completedAt != null ? t.completedAt : Instant.now()) : null;
         for (int i = 0; i < target.size(); i++) target.get(i).order = i;
         repo.saveAll(target);
+        notifications.reschedule(t);
         return t;
     }
 
@@ -101,6 +111,7 @@ public class TaskService {
         Task t = get(id);
         t.deletedAt = Instant.now();
         repo.save(t);
+        notifications.cancel(t.id);
     }
 
     static Column findColumn(Board board, String columnId) {

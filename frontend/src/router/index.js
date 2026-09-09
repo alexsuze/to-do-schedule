@@ -9,7 +9,8 @@ const routes = [
       // 無 id 時由 BoardPage 導向最後開啟的看板
       { path: '', name: 'home', component: () => import('../pages/BoardPage.vue') },
       { path: 'boards/:id', name: 'board', component: () => import('../pages/BoardPage.vue') },
-      { path: 'trash', name: 'trash', component: () => import('../pages/TrashPage.vue') }
+      { path: 'trash', name: 'trash', component: () => import('../pages/TrashPage.vue') },
+      { path: 'settings', name: 'settings', component: () => import('../pages/SettingsPage.vue') }
     ]
   }
 ]

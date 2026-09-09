@@ -21,8 +21,8 @@
 |-----------|------|---------|
 | `boards` | 看板與其內嵌的欄位 | 階段 1（已實作） |
 | `tasks` | 工作事項 | 階段 2（已實作） |
-| `settings` | 全域設定（只有一筆） | 階段 5 |
-| `notifications` | Email 通知排程與寄送紀錄 | 階段 5 |
+| `settings` | 全域設定（只有一筆） | 階段 5（已實作） |
+| `notifications` | Email 通知排程與寄送紀錄 | 階段 5（已實作） |
 
 ---
 
@@ -121,7 +121,7 @@
 
 ---
 
-## settings（全域設定）— 階段 5
+## settings（全域設定）— 階段 5（已實作）
 
 單一使用者系統，此 collection **永遠只有一筆文件**。後端以固定 `_id`（例如 `"global"`）讀寫，不存在時以預設值建立。
 
@@ -134,12 +134,12 @@
 | `daily_digest_enabled` | Boolean | false | 是否寄每日摘要 |
 | `daily_digest_time` | String | `"09:00"` | 每日摘要寄送時間（HH:mm，依 `timezone`） |
 | `timezone` | String | `"Asia/Taipei"` | 到期時間與通知時間計算用時區 |
-| `last_board_id` | ObjectId / null | null | 最後開啟的看板，進入系統時預設顯示（階段 1～4 暫存於瀏覽器 localStorage） |
+| `last_board_id` | String / null | null | 最後開啟的看板 id，換裝置時用；瀏覽器 localStorage 仍為第一優先 |
 | `updated_at` | Date | — | 最後修改時間 |
 
 ---
 
-## notifications（通知排程與紀錄）— 階段 5
+## notifications（通知排程與紀錄）— 階段 5（已實作）
 
 每一筆代表「某事項在某時間要寄一封信」。排程器每分鐘掃描 `status = pending` 且 `scheduled_at <= now` 的資料寄送。
 
@@ -149,6 +149,7 @@
 | `task_id` | ObjectId / null | 否 | 對象事項；每日摘要為 null |
 | `type` | String | 是 | `reminder`（到期提醒）/ `daily_digest`（每日摘要） |
 | `lead_time` | String / null | 否 | 提前時間，如 `"1d"`；每日摘要為 null |
+| `subject` | String | 系統 | 信件主旨，供紀錄頁顯示，不必再查事項 |
 | `scheduled_at` | Date | 是 | 預計寄送時間（UTC） |
 | `sent_at` | Date / null | 系統 | 實際寄出時間 |
 | `status` | String | 是 | `pending` / `sent` / `failed` / `cancelled` |
@@ -158,7 +159,8 @@
 | `created_at` | Date | 系統 | 建立時間 |
 
 ### 業務規則
-- 同一事項同一 `lead_time` 只能有一筆 `pending`，避免重複寄送。
+- 同一事項同一 `lead_time` 只能有一筆 `pending`；同一 `lead_time` + `scheduled_at` 已 `sent` 者不再建立。
+- 每日摘要以 `type = daily_digest` + `scheduled_at`（當日設定時間）去重，每天只寄一封。
 - 事項 `due_at` 變更時，重算所有 `pending` 通知的 `scheduled_at`。
 - 事項完成、刪除或所屬看板刪除時，將 `pending` 改為 `cancelled`。
 - 後端停機恢復後，`scheduled_at` 已過但事項仍未到期者立即補寄；已到期者併入每日摘要。
@@ -187,3 +189,4 @@ settings（獨立，單一文件）
 | 2026-09-09 | 初版，依需求書 v0.5 整理；補充 Column `_id`、settings 固定 `_id`、各索引用途與階段標示 |
 | 2026-09-09 | 階段 2：tasks 已實作；註明參照欄位以字串儲存、索引暫不建立 |
 | 2026-09-09 | `start_date`（日期）改為 `start_at`（日期時間），前端預設開始 09:00、到期 18:00 |
+| 2026-09-09 | 階段 5：settings / notifications 已實作；notifications 加 `subject`，`last_board_id` 改為字串 |

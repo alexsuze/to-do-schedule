@@ -58,16 +58,27 @@ function setMode (m) {
 // 路由 id 為準；沒有 id 或 id 不存在時導向最後開啟的看板，再不然就第一個
 watch(
   () => [route.params.id, boards.loaded],
-  ([id, loaded]) => {
+  async ([id, loaded]) => {
     if (!loaded) return
     if (id && boards.byId(id)) {
       ui.setCurrentBoard(id)
-      tasks.load(id)
+      await tasks.load(id)
+      openFromQuery()
       return
     }
+    await ui.restoreLastBoard()
     const fallback = boards.byId(ui.currentBoardId) || boards.boards[0]
     if (fallback) router.replace({ name: 'board', params: { id: fallback.id } })
   },
   { immediate: true }
 )
+
+// Email 內的連結：#/boards/{id}?task={taskId} 直接開啟編輯視窗
+function openFromQuery () {
+  const t = route.query.task && tasks.byId(route.query.task)
+  if (t) {
+    editing.value = t
+    router.replace({ name: 'board', params: { id: route.params.id } })
+  }
+}
 </script>

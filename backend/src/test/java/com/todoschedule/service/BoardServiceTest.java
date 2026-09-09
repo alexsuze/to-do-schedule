@@ -26,7 +26,7 @@ class BoardServiceTest {
 
     private final BoardRepository repo = mock(BoardRepository.class);
     private final TaskRepository taskRepo = mock(TaskRepository.class);
-    private final BoardService service = new BoardService(repo, taskRepo);
+    private final BoardService service = new BoardService(repo, taskRepo, mock(NotificationService.class));
     private final List<Board> active = new ArrayList<>();
     private final List<Task> tasks = new ArrayList<>();
 

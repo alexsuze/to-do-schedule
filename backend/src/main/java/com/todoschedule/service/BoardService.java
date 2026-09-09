@@ -25,10 +25,12 @@ public class BoardService {
 
     private final BoardRepository repo;
     private final TaskRepository tasks;
+    private final NotificationService notifications;
 
-    public BoardService(BoardRepository repo, TaskRepository tasks) {
+    public BoardService(BoardRepository repo, TaskRepository tasks, NotificationService notifications) {
         this.repo = repo;
         this.tasks = tasks;
+        this.notifications = notifications;
     }
 
     /** 列出未刪除看板；首次啟動沒有任何看板時自動建立預設看板。 */
@@ -131,6 +133,9 @@ public class BoardService {
                     t.completedAt = target.isDoneType ? (t.completedAt != null ? t.completedAt : Instant.now()) : null;
                 }
                 tasks.saveAll(orphans);
+                board.columns = result;
+                repo.save(board); // 先存欄位，reschedule 才看得到新的完成類型
+                notifications.rescheduleAll(orphans);
             }
         }
 
@@ -138,10 +143,10 @@ public class BoardService {
         return repo.save(board);
     }
 
-    /** ponytail: 取消通知於階段 5 補上。 */
     private void softDeleteTasks(List<Task> list, Instant at) {
         for (Task t : list) t.deletedAt = at;
         tasks.saveAll(list);
+        notifications.cancelAll(list);
     }
 
     public static String requireName(String name, int max, String label) {

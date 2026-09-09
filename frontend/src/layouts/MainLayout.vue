@@ -49,6 +49,10 @@
           <q-item-section avatar><q-icon name="delete" /></q-item-section>
           <q-item-section>回收桶</q-item-section>
         </q-item>
+        <q-item clickable :to="{ name: 'settings' }" active-class="bg-blue-1 text-primary">
+          <q-item-section avatar><q-icon name="settings" /></q-item-section>
+          <q-item-section>設定</q-item-section>
+        </q-item>
       </q-list>
     </q-drawer>
 
