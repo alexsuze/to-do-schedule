@@ -114,9 +114,11 @@ public class TaskService {
         int index = req.index() == null ? target.size() : Math.max(0, Math.min(req.index(), target.size()));
         target.add(index, t);
 
+        // 換到別的欄位就重新計時（完成後 10 天自動進回收桶，見 TrashService）；同欄位內排序不重算
+        boolean sameColumn = col.id.equals(t.columnId);
         t.boardId = board.id;
         t.columnId = col.id;
-        t.completedAt = col.isDoneType ? (t.completedAt != null ? t.completedAt : Instant.now()) : null;
+        t.completedAt = col.isDoneType ? (sameColumn && t.completedAt != null ? t.completedAt : Instant.now()) : null;
         for (int i = 0; i < target.size(); i++) target.get(i).order = i;
         repo.saveAll(target);
         notifications.reschedule(t);

@@ -24,6 +24,8 @@ import java.util.Map;
 public class TrashService {
 
     public static final Duration RETENTION = Duration.ofDays(30);
+    /** 進入完成欄後超過此天數未更動狀態，自動移入回收桶。 */
+    public static final Duration AUTO_TRASH_AFTER_DONE = Duration.ofDays(10);
     private static final Logger log = LoggerFactory.getLogger(TrashService.class);
 
     /** 回收桶列表用，附上看板 / 欄位名稱與到期時間。 */
@@ -120,6 +122,21 @@ public class TrashService {
         tasks.deleteByDeletedAtBefore(before);
         boards.deleteByDeletedAtBefore(before);
         log.info("回收桶清理完成：刪除 {} 之前的資料", before);
+    }
+
+    /**
+     * 每天 03:10 把「完成超過 10 天」的事項移入回收桶。
+     * completed_at 在進入完成欄時寫入、離開時清除、再進入時重寫，所以本身就是計時起點。
+     */
+    @Scheduled(cron = "0 10 3 * * *")
+    public void autoTrashCompleted() {
+        Instant now = Instant.now();
+        List<Task> stale = tasks.findByCompletedAtBeforeAndDeletedAtIsNull(now.minus(AUTO_TRASH_AFTER_DONE));
+        if (stale.isEmpty()) return;
+        for (Task t : stale) t.deletedAt = now;
+        tasks.saveAll(stale);
+        notifications.cancelAll(stale);
+        log.info("完成超過 {} 天的事項自動移入回收桶：{} 筆", AUTO_TRASH_AFTER_DONE.toDays(), stale.size());
     }
 
     private void restoreInto(Task t, Board b) {

@@ -101,7 +101,7 @@
 | `tags` | Array\<String\> | 是 | 標籤，可為空陣列 |
 | `checklist` | Array\<ChecklistItem\> | 是 | 事項內的待辦清單，可為空陣列（2026-09-09 新增），結構見下表 |
 | `notification_override` | Object / null | 否 | 事項專屬通知設定；null 表示沿用全域設定，結構見下表 |
-| `completed_at` | Date / null | 系統 | 移入完成類型欄位時自動填入，移出時清除 |
+| `completed_at` | Date / null | 系統 | 移入完成類型欄位時填入，移出時清除，換到另一個完成欄重新填入。超過 10 天未更動狀態，每日排程自動軟刪除（2026-09-09 新增） |
 | `deleted_at` | Date / null | 系統 | 軟刪除時間 |
 | `created_at` | Date | 系統 | 建立時間 |
 | `updated_at` | Date | 系統 | 最後修改時間 |

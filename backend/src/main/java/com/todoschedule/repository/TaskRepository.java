@@ -13,6 +13,9 @@ public interface TaskRepository extends MongoRepository<Task, String> {
     /** 總時程表用：全部未刪除事項。 */
     List<Task> findByDeletedAtIsNull();
 
+    /** 完成超過一段時間、尚未刪除的事項（自動進回收桶用）。 */
+    List<Task> findByCompletedAtBeforeAndDeletedAtIsNull(Instant before);
+
     List<Task> findByColumnIdAndDeletedAtIsNullOrderByOrderAsc(String columnId);
 
     /* 回收桶 */

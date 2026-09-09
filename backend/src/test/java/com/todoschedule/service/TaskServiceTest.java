@@ -18,6 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -83,6 +84,15 @@ class TaskServiceTest {
         service.move(a.id, new MoveRequest(null, todo, null));
         assertNull(a.completedAt);
         assertEquals(2, a.order);
+
+        // 同欄位內排序不重算完成時間；離開再進入則重新計時
+        service.move(a.id, new MoveRequest(null, done, null));
+        Instant first = a.completedAt;
+        service.move(a.id, new MoveRequest(null, done, 0));
+        assertEquals(first, a.completedAt);
+        service.move(a.id, new MoveRequest(null, todo, null));
+        service.move(a.id, new MoveRequest(null, done, null));
+        assertTrue(!a.completedAt.isBefore(first));
 
         assertThrows(ResponseStatusException.class, () -> service.move(a.id, new MoveRequest(null, "nope", null)));
     }
