@@ -9,8 +9,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
-import java.time.LocalDate;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -25,7 +23,7 @@ public class TaskService {
 
     /** 編輯視窗一次送完整欄位，null 即清空。 */
     public record TaskRequest(String title, String description, String priority,
-                              LocalDate startDate, Instant dueAt, List<String> tags) {}
+                              Instant startAt, Instant dueAt, List<String> tags) {}
 
     /** board_id 省略表示同看板；index 省略表示放到欄位最後。 */
     public record MoveRequest(String boardId, String columnId, Integer index) {}
@@ -72,8 +70,8 @@ public class TaskService {
             }
             t.priority = req.priority();
         }
-        validateDates(req.startDate(), req.dueAt());
-        t.startDate = req.startDate();
+        validateDates(req.startAt(), req.dueAt());
+        t.startAt = req.startAt();
         t.dueAt = req.dueAt();
         t.tags = req.tags() == null ? new ArrayList<>()
                 : req.tags().stream().map(String::strip).filter(s -> !s.isEmpty()).distinct().toList();
@@ -110,10 +108,9 @@ public class TaskService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "欄位不存在"));
     }
 
-    /** ponytail: 以 UTC 日期比較，時區依設定計算留到階段 5。 */
-    static void validateDates(LocalDate start, Instant due) {
-        if (start != null && due != null && due.atZone(ZoneOffset.UTC).toLocalDate().isBefore(start)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "到期日期不可早於開始日期");
+    static void validateDates(Instant start, Instant due) {
+        if (start != null && due != null && due.isBefore(start)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "到期時間不可早於開始時間");
         }
     }
 

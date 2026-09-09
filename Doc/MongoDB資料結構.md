@@ -94,8 +94,8 @@
 | `title` | String | 是 | 標題，1～100 字 |
 | `description` | String / null | 否 | 描述，支援多行 |
 | `priority` | String | 是 | 優先度：`high` / `medium` / `low`，預設 `medium` |
-| `start_date` | Date / null | 否 | 開始日期（Java `LocalDate`，存為當日 00:00 UTC），時程表起點 |
-| `due_at` | Date / null | 否 | 到期日期時間（UTC），時程表終點，亦為通知依據；不可早於 `start_date` |
+| `start_at` | Date / null | 否 | 開始日期時間（UTC），時程表起點。需求書原為純日期，2026-09-09 依使用者要求改含時間 |
+| `due_at` | Date / null | 否 | 到期日期時間（UTC），時程表終點，亦為通知依據；不可早於 `start_at` |
 | `order` | Int | 是 | 同一欄位內的排序 |
 | `tags` | Array\<String\> | 是 | 標籤，可為空陣列 |
 | `notification_override` | Object / null | 否 | 事項專屬通知設定；null 表示沿用全域設定，結構見下表 |
@@ -185,4 +185,5 @@ settings（獨立，單一文件）
 | 日期 | 內容 |
 |------|------|
 | 2026-09-09 | 初版，依需求書 v0.5 整理；補充 Column `_id`、settings 固定 `_id`、各索引用途與階段標示 |
-| 2026-09-09 | 階段 2：tasks 已實作；註明參照欄位以字串儲存、`start_date` 為 LocalDate、索引暫不建立 |
+| 2026-09-09 | 階段 2：tasks 已實作；註明參照欄位以字串儲存、索引暫不建立 |
+| 2026-09-09 | `start_date`（日期）改為 `start_at`（日期時間），前端預設開始 09:00、到期 18:00 |

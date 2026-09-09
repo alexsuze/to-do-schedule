@@ -84,8 +84,8 @@ class BoardServiceTest {
     void updateColumnsAssignsIdsAndOrder() {
         Board b = service.create("A", null);
         String keepId = b.columns.get(0).id;
-        Column kept = new Column(keepId, "待辦改名", 9, false);
-        Column added = new Column(null, "新欄", 0, true);
+        Column kept = Column.of(keepId, "待辦改名", 9, false);
+        Column added = Column.of(null, "新欄", 0, true);
         Board updated = service.updateColumns(b.id, List.of(added, kept), null);
         assertEquals(2, updated.columns.size());
         assertEquals(0, updated.columns.get(0).order);

@@ -10,11 +10,12 @@ export function priorityColor (p) {
   return PRIORITIES.find(x => x.value === p)?.color || 'grey'
 }
 
+const pad = n => String(n).padStart(2, '0')
+
 // ponytail: 以瀏覽器時區顯示，設定檔時區留到階段 5
 export function formatDue (iso) {
   if (!iso) return ''
   const d = new Date(iso)
-  const pad = n => String(n).padStart(2, '0')
   return `${d.getMonth() + 1}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
@@ -28,14 +29,15 @@ export function dueState (task) {
   return ''
 }
 
-// datetime-local 的值（本地時間，無時區）<-> ISO UTC
-export function isoToLocalInput (iso) {
+// ISO UTC <-> 本地 'YYYY-MM-DD HH:mm'（DateTimeField 用）
+export function isoToLocal (iso) {
   if (!iso) return ''
   const d = new Date(iso)
-  const pad = n => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
-export function localInputToIso (v) {
-  return v ? new Date(v).toISOString() : null
+export function localToIso (v) {
+  if (!v || v.length < 16) return null
+  const d = new Date(v.replace(' ', 'T'))
+  return isNaN(d) ? null : d.toISOString()
 }

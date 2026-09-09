@@ -10,7 +10,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -91,8 +90,8 @@ class TaskServiceTest {
     @Test
     void updateValidatesDatesAndCleansTags() {
         Task a = service.create("b1", "A");
-        LocalDate start = LocalDate.of(2026, 9, 10);
-        Instant before = Instant.parse("2026-09-09T00:00:00Z");
+        Instant start = Instant.parse("2026-09-10T01:00:00Z");
+        Instant before = Instant.parse("2026-09-10T00:30:00Z");
         assertThrows(ResponseStatusException.class, () ->
                 service.update(a.id, new TaskRequest("A", null, "high", start, before, null)));
 

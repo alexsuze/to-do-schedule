@@ -50,9 +50,9 @@ public class BoardService {
         board.order = repo.findByDeletedAtIsNullOrderByOrderAsc().stream()
                 .mapToInt(b -> b.order).max().orElse(-1) + 1;
         board.columns = new ArrayList<>(List.of(
-                new Column(newId(), "待辦", 0, false),
-                new Column(newId(), "進行中", 1, false),
-                new Column(newId(), "完成", 2, true)));
+                Column.of(newId(), "待辦", 0, false),
+                Column.of(newId(), "進行中", 1, false),
+                Column.of(newId(), "完成", 2, true)));
         return repo.save(board);
     }
 
@@ -108,7 +108,7 @@ public class BoardService {
         for (int i = 0; i < columns.size(); i++) {
             Column c = columns.get(i);
             String colId = (c.id == null || c.id.isBlank()) ? newId() : c.id;
-            result.add(new Column(colId, requireName(c.name, 30, "欄位名稱"), i, c.isDoneType));
+            result.add(Column.of(colId, requireName(c.name, 30, "欄位名稱"), i, c.isDoneType));
         }
 
         for (Column old : board.columns) {

@@ -7,7 +7,6 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 
 import java.time.Instant;
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -27,8 +26,8 @@ public class Task {
     public String title;
     public String description;
     public String priority = "medium";
-    @Field("start_date")
-    public LocalDate startDate;
+    @Field("start_at")
+    public Instant startAt;
     @Field("due_at")
     public Instant dueAt;
     public int order;

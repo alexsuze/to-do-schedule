@@ -34,6 +34,7 @@ public class Board {
     @Field("updated_at")
     public Instant updatedAt;
 
+    /** 只能有無參數建構子：Jackson 3 遇到多個建構子會無法解析請求（Failed to read request）。 */
     public static class Column {
         @Id
         public String id;
@@ -42,13 +43,13 @@ public class Board {
         @Field("is_done_type")
         public boolean isDoneType;
 
-        public Column() {}
-
-        public Column(String id, String name, int order, boolean isDoneType) {
-            this.id = id;
-            this.name = name;
-            this.order = order;
-            this.isDoneType = isDoneType;
+        public static Column of(String id, String name, int order, boolean isDoneType) {
+            Column c = new Column();
+            c.id = id;
+            c.name = name;
+            c.order = order;
+            c.isDoneType = isDoneType;
+            return c;
         }
     }
 }

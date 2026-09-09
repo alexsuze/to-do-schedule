@@ -1,35 +1,35 @@
 <template>
   <q-dialog v-model="open" @hide="$emit('close')">
-    <q-card style="width: 560px; max-width: 95vw">
+    <q-card style="width: 720px; max-width: 95vw">
       <q-card-section class="row items-center q-pb-none">
         <div class="text-h6">編輯事項</div>
         <q-space />
         <q-btn flat round dense icon="close" v-close-popup />
       </q-card-section>
 
-      <q-card-section class="q-gutter-sm">
-        <q-input v-model="form.title" label="標題 *" maxlength="100" autofocus dense
+      <q-card-section class="q-gutter-y-md">
+        <q-input v-model="form.title" label="標題 *" maxlength="100" autofocus
           :rules="[v => !!v?.trim() || '標題不可為空白']" />
-        <q-input v-model="form.description" label="描述" type="textarea" autogrow dense />
+        <q-input v-model="form.description" label="描述" type="textarea" autogrow />
 
-        <div class="row q-col-gutter-sm">
-          <q-select class="col-6" v-model="form.priority" :options="PRIORITIES" label="優先度"
-            emit-value map-options dense />
-          <q-select class="col-6" v-model="form.column_id" :options="columnOptions" label="狀態（欄位）"
-            emit-value map-options dense />
+        <div class="row q-col-gutter-md">
+          <q-select class="col-12 col-sm-6" v-model="form.priority" :options="PRIORITIES" label="優先度"
+            emit-value map-options />
+          <q-select class="col-12 col-sm-6" v-model="form.column_id" :options="columnOptions" label="狀態（欄位）"
+            emit-value map-options />
         </div>
 
-        <div class="row q-col-gutter-sm">
-          <q-input class="col-6" v-model="form.start_date" label="開始日期" type="date" dense clearable />
-          <q-input class="col-6" v-model="form.due_local" label="到期時間" type="datetime-local" dense clearable
+        <div class="row q-col-gutter-md">
+          <DateTimeField class="col-12 col-sm-6" v-model="form.start_local" label="開始時間" default-time="09:00" />
+          <DateTimeField class="col-12 col-sm-6" v-model="form.due_local" label="到期時間" default-time="18:00"
             :hint="pastDueHint" />
         </div>
 
         <q-select v-model="form.tags" label="標籤" multiple use-input use-chips new-value-mode="add-unique"
-          hide-dropdown-icon dense hint="輸入後按 Enter 新增" />
+          hide-dropdown-icon hint="輸入後按 Enter 新增" />
 
         <q-select v-model="form.board_id" :options="boardOptions" label="移至其他看板"
-          emit-value map-options dense />
+          emit-value map-options />
       </q-card-section>
 
       <q-card-actions align="between">
@@ -48,7 +48,8 @@ import { computed, ref, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import { useBoardsStore } from '../stores/boards'
 import { useTasksStore } from '../stores/tasks'
-import { PRIORITIES, isoToLocalInput, localInputToIso } from '../utils/task'
+import { PRIORITIES, isoToLocal, localToIso } from '../utils/task'
+import DateTimeField from './DateTimeField.vue'
 
 const props = defineProps({ task: { type: Object, default: null } })
 const emit = defineEmits(['close'])
@@ -69,8 +70,8 @@ watch(() => props.task, t => {
     priority: t.priority,
     column_id: t.column_id,
     board_id: t.board_id,
-    start_date: t.start_date || '',
-    due_local: isoToLocalInput(t.due_at),
+    start_local: isoToLocal(t.start_at),
+    due_local: isoToLocal(t.due_at),
     tags: [...(t.tags || [])]
   }
   open.value = true
@@ -85,7 +86,7 @@ watch(() => form.value.board_id, (id, old) => {
 })
 
 const pastDueHint = computed(() => {
-  const iso = localInputToIso(form.value.due_local)
+  const iso = localToIso(form.value.due_local)
   return iso && new Date(iso) < Date.now() ? '到期時間已過，仍可儲存' : ''
 })
 
@@ -98,8 +99,8 @@ async function save () {
       title: form.value.title,
       description: form.value.description,
       priority: form.value.priority,
-      start_date: form.value.start_date || null,
-      due_at: localInputToIso(form.value.due_local),
+      start_at: localToIso(form.value.start_local),
+      due_at: localToIso(form.value.due_local),
       tags: form.value.tags
     })
     if (form.value.board_id !== t.board_id || form.value.column_id !== t.column_id) {
