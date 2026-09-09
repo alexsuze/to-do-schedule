@@ -1,35 +1,54 @@
 <template>
   <div>
     <div class="row items-center q-gutter-sm q-mb-sm">
-      <q-btn-toggle v-model="scale" unelevated toggle-color="primary" size="sm"
-        :options="[{ label: '日', value: 'day' }, { label: '週', value: 'week' }, { label: '月', value: 'month' }]" />
       <q-btn flat dense icon="today" label="回到今天" @click="scrollToToday" />
-      <span class="text-caption text-grey">唯讀，點擊長條可編輯</span>
+      <span class="text-caption text-grey">唯讀，點擊長條可編輯；捲到兩端可顯示更多日期</span>
     </div>
 
-    <!-- ponytail: 純 CSS 甘特圖，每天固定像素寬；資料量大再考慮虛擬捲動 -->
-    <div ref="scrollEl" class="tl-scroll">
-      <div :style="{ width: LABEL_W + totalW + 'px' }">
-        <div class="tl-row tl-header">
-          <div class="tl-label">事項</div>
-          <div class="tl-track" :style="trackStyle">
-            <div v-for="s in segments" :key="s.key" class="tl-seg" :style="{ width: s.days * ppd + 'px' }">{{ s.label }}</div>
-          </div>
-        </div>
-
-        <div class="tl-body">
-          <div class="tl-today" :style="{ left: LABEL_W + todayX + 'px' }" />
-          <div v-for="t in scheduled" :key="t.id" class="tl-row">
-            <div class="tl-label ellipsis cursor-pointer" @click="$emit('edit', t)">{{ t.title }}</div>
+    <!-- ponytail: 純 CSS 甘特圖，每天固定像素寬；預設今天前 5 天、後 25 天，兩端可各加 10 天 -->
+    <div class="tl-wrap">
+      <div ref="scrollEl" class="tl-scroll" @scroll.passive="onScroll">
+        <div :style="{ width: LABEL_W + totalW + 'px' }">
+          <div class="tl-row tl-header">
+            <div class="tl-label">事項</div>
             <div class="tl-track" :style="trackStyle">
-              <div class="tl-bar cursor-pointer" :class="barClass(t)" :style="barStyle(t)" @click="$emit('edit', t)">
-                <span class="ellipsis">{{ t.title }}</span>
+              <div v-for="d in days" :key="d.key" class="tl-seg" :class="{ 'tl-weekend': d.weekend, 'tl-is-today': d.today }"
+                :style="{ width: PPD + 'px' }">
+                <div>{{ d.md }}</div>
+                <div class="text-grey">{{ d.wd }}</div>
               </div>
             </div>
           </div>
-          <div v-if="!scheduled.length" class="tl-row"><div class="tl-label text-grey">沒有已排程事項</div></div>
+
+          <div class="tl-body">
+            <div class="tl-today" :style="{ left: LABEL_W + todayX + 'px' }" />
+            <div v-for="t in scheduled" :key="t.id" class="tl-row">
+              <div class="tl-label cursor-pointer" @click="$emit('edit', t)">
+                <span class="ellipsis">{{ t.title }}</span>
+                <span v-if="outOfRange(t)" class="text-caption text-grey q-ml-xs">（範圍外）</span>
+              </div>
+              <div class="tl-track" :style="trackStyle">
+                <div class="tl-bar cursor-pointer" :class="barClass(t)" :style="barStyle(t)" @click="$emit('edit', t)">
+                  <span class="ellipsis">{{ t.title }}</span>
+                  <q-tooltip anchor="top middle" self="bottom middle" :delay="300" class="bg-grey-9 text-body2" max-width="320px">
+                    <div class="text-weight-bold">{{ t.title }}</div>
+                    <div v-if="t.description" class="q-mt-xs tl-desc">{{ t.description }}</div>
+                    <div class="q-mt-xs">狀態：{{ columnName(t.column_id) }}</div>
+                    <div>{{ isoToLocal(t.start_at) || '—' }} ～ {{ isoToLocal(t.due_at) || '—' }}</div>
+                  </q-tooltip>
+                </div>
+              </div>
+            </div>
+            <div v-if="!scheduled.length" class="tl-row"><div class="tl-label text-grey">沒有已排程事項</div></div>
+          </div>
         </div>
       </div>
+
+      <!-- 捲到兩端才出現 -->
+      <q-btn v-if="atStart" class="tl-more tl-more-left" unelevated color="primary" icon="chevron_left" label="顯示更多" no-caps
+        @click="extend(-1)" />
+      <q-btn v-if="atEnd" class="tl-more tl-more-right" unelevated color="primary" icon-right="chevron_right" label="顯示更多" no-caps
+        @click="extend(1)" />
     </div>
 
     <div v-if="unscheduled.length" class="q-mt-md">
@@ -45,28 +64,54 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { priorityColor } from '../utils/task'
+import { computed, nextTick, onMounted, ref } from 'vue'
+import { priorityColor, isoToLocal } from '../utils/task'
 
 const props = defineProps({
+  board: { type: Object, required: true },
   tasks: { type: Array, required: true } // 已套用篩選
 })
 defineEmits(['edit'])
 
 const LABEL_W = 200
-const PPD = { day: 48, week: 20, month: 6 } // 每天像素寬
-const scale = ref('week')
+const PPD = 48 // 每天像素寬
+const BEFORE = 5
+const AFTER = 25
+const STEP = 10
+
 const scrollEl = ref(null)
-const ppd = computed(() => PPD[scale.value])
+const extraBefore = ref(0)
+const extraAfter = ref(0)
+const atStart = ref(true)
+const atEnd = ref(false)
 
 const DAY = 86400000
 const startOfDay = d => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x }
 const addDays = (d, n) => new Date(d.getTime() + n * DAY)
 const diffDays = (a, b) => Math.round((startOfDay(b) - startOfDay(a)) / DAY)
 const today = startOfDay(new Date())
+const WEEKDAY = ['日', '一', '二', '三', '四', '五', '六']
 
 const scheduled = computed(() => props.tasks.filter(t => t.start_at || t.due_at))
 const unscheduled = computed(() => props.tasks.filter(t => !t.start_at && !t.due_at))
+const columnName = id => props.board.columns.find(c => c.id === id)?.name || ''
+
+const rangeStart = computed(() => addDays(today, -(BEFORE + extraBefore.value)))
+const rangeDays = computed(() => BEFORE + extraBefore.value + 1 + AFTER + extraAfter.value)
+const totalW = computed(() => rangeDays.value * PPD)
+const todayX = computed(() => diffDays(rangeStart.value, today) * PPD)
+const trackStyle = computed(() => ({ width: totalW.value + 'px', backgroundSize: PPD + 'px 100%' }))
+
+const days = computed(() => Array.from({ length: rangeDays.value }, (_, i) => {
+  const d = addDays(rangeStart.value, i)
+  return {
+    key: i,
+    md: `${d.getMonth() + 1}/${d.getDate()}`,
+    wd: WEEKDAY[d.getDay()],
+    weekend: d.getDay() === 0 || d.getDay() === 6,
+    today: diffDays(d, today) === 0
+  }
+}))
 
 // 事項起訖（沒開始就用到期當天，沒到期就用開始當天）
 const span = t => {
@@ -75,49 +120,18 @@ const span = t => {
   return { s, e: e < s ? s : e }
 }
 
-// 範圍：涵蓋所有事項與今天前後，前後各留 3 天
-const range = computed(() => {
-  let min = addDays(today, -7)
-  let max = addDays(today, 30)
-  for (const t of scheduled.value) {
-    const { s, e } = span(t)
-    if (s < min) min = s
-    if (e > max) max = e
-  }
-  min = addDays(min, -3)
-  max = addDays(max, 3)
-  return { start: min, days: diffDays(min, max) + 1 }
-})
+function outOfRange (t) {
+  const { s, e } = span(t)
+  const end = addDays(rangeStart.value, rangeDays.value - 1)
+  return e < rangeStart.value || s > end
+}
 
-const totalW = computed(() => range.value.days * ppd.value)
-const todayX = computed(() => diffDays(range.value.start, today) * ppd.value)
-const trackStyle = computed(() => ({
-  width: totalW.value + 'px',
-  backgroundSize: ppd.value + 'px 100%'
-}))
-
-// 表頭分段：日 / 週（週一起）/ 月
-const WEEKDAY = ['日', '一', '二', '三', '四', '五', '六']
-const segments = computed(() => {
-  const out = []
-  for (let i = 0; i < range.value.days; i++) {
-    const d = addDays(range.value.start, i)
-    let key, label
-    if (scale.value === 'day') { key = i; label = `${d.getMonth() + 1}/${d.getDate()} ${WEEKDAY[d.getDay()]}` }
-    else if (scale.value === 'week') { key = diffDays(new Date(2024, 0, 1), d) - ((d.getDay() + 6) % 7); label = `${d.getMonth() + 1}/${d.getDate()}` }
-    else { key = `${d.getFullYear()}-${d.getMonth()}`; label = `${d.getFullYear()}/${d.getMonth() + 1}` }
-    const last = out[out.length - 1]
-    if (last && last.key === key) last.days++
-    else out.push({ key, label, days: 1 })
-  }
-  return out
-})
-
+// 超出範圍的部分由 .tl-track 的 overflow hidden 裁掉
 function barStyle (t) {
   const { s, e } = span(t)
   return {
-    left: diffDays(range.value.start, s) * ppd.value + 'px',
-    width: (diffDays(s, e) + 1) * ppd.value - 2 + 'px'
+    left: diffDays(rangeStart.value, s) * PPD + 'px',
+    width: (diffDays(s, e) + 1) * PPD - 2 + 'px'
   }
 }
 
@@ -125,33 +139,58 @@ function barClass (t) {
   return t.completed_at ? 'bg-grey-5' : `bg-${priorityColor(t.priority)}`
 }
 
+function onScroll () {
+  const el = scrollEl.value
+  if (!el) return
+  atStart.value = el.scrollLeft < 4
+  atEnd.value = el.scrollLeft + el.clientWidth >= el.scrollWidth - 4
+}
+
+async function extend (dir) {
+  const el = scrollEl.value
+  const keep = el.scrollLeft
+  if (dir < 0) extraBefore.value += STEP
+  else extraAfter.value += STEP
+  await nextTick()
+  // 往前加日期時，畫面停在原本看的位置
+  el.scrollLeft = dir < 0 ? keep + STEP * PPD : keep
+  onScroll()
+}
+
 function scrollToToday () {
   if (scrollEl.value) scrollEl.value.scrollLeft = Math.max(0, todayX.value - 150)
+  nextTick(onScroll)
 }
 
 onMounted(scrollToToday)
-watch(scale, () => nextTick(scrollToToday))
 </script>
 
 <style scoped>
+.tl-wrap { position: relative; }
 .tl-scroll { overflow-x: auto; border: 1px solid #e0e0e0; border-radius: 4px; background: #fff; }
 .tl-row { display: flex; align-items: stretch; border-bottom: 1px solid #eee; min-height: 32px; }
 .tl-header { position: sticky; top: 0; background: #fafafa; z-index: 2; font-size: 12px; }
 .tl-label {
   width: 200px; min-width: 200px; padding: 6px 8px; box-sizing: border-box;
   position: sticky; left: 0; background: #fff; z-index: 3; border-right: 1px solid #e0e0e0;
-  display: flex; align-items: center;
+  display: flex; align-items: center; overflow: hidden; white-space: nowrap;
 }
 .tl-header .tl-label { background: #fafafa; }
 .tl-track {
-  position: relative; display: flex;
+  position: relative; display: flex; overflow: hidden;
   background-image: linear-gradient(to right, #eee 1px, transparent 1px);
 }
-.tl-seg { border-right: 1px solid #ddd; padding: 6px 4px; box-sizing: border-box; white-space: nowrap; overflow: hidden; text-align: center; }
+.tl-seg { border-right: 1px solid #ddd; padding: 4px 2px; box-sizing: border-box; white-space: nowrap; overflow: hidden; text-align: center; line-height: 1.2; }
+.tl-weekend { background: #f5f5f5; }
+.tl-is-today { background: #fdecea; font-weight: bold; }
 .tl-body { position: relative; }
 .tl-today { position: absolute; top: 0; bottom: 0; width: 2px; background: #c10015; z-index: 1; }
 .tl-bar {
   position: absolute; top: 5px; height: 22px; border-radius: 4px; color: #fff; font-size: 12px;
   padding: 0 6px; line-height: 22px; overflow: hidden; white-space: nowrap; z-index: 1;
 }
+.tl-desc { white-space: pre-wrap; opacity: 0.9; }
+.tl-more { position: absolute; top: 50%; transform: translateY(-50%); z-index: 4; opacity: 0.9; }
+.tl-more-left { left: 208px; }
+.tl-more-right { right: 8px; }
 </style>

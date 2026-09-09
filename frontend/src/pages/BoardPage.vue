@@ -13,7 +13,7 @@
 
       <KanbanView v-if="mode === 'kanban'" :board="board" :tasks="visible" :filtering="ui.filtering" @edit="editing = $event" />
       <ListView v-else-if="mode === 'list'" :board="board" :tasks="visible" @edit="editing = $event" />
-      <TimelineView v-else :tasks="visible" @edit="editing = $event" />
+      <TimelineView v-else :board="board" :tasks="visible" @edit="editing = $event" />
     </template>
 
     <TaskDialog :task="editing" @close="editing = null" />
