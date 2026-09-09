@@ -65,7 +65,7 @@
 
 <script setup>
 import { computed, nextTick, onMounted, ref } from 'vue'
-import { priorityColor, isoToLocal, textOn } from '../utils/task'
+import { priorityColor, isoToLocal } from '../utils/task'
 
 const props = defineProps({
   boards: { type: Array, required: true }, // 單一看板頁傳 [board]，總時程表傳全部
@@ -129,29 +129,24 @@ function outOfRange (t) {
   return e < rangeStart.value || s > end
 }
 
-// 總時程表：長條與左側名稱套用看板顏色；單一看板頁維持優先度色
-const boardColor = t => (props.showBoard && !t.completed_at) ? boardOf(t)?.color : null
-
 // 超出範圍的部分由 .tl-track 的 overflow hidden 裁掉
 function barStyle (t) {
   const { s, e } = span(t)
-  const c = boardColor(t)
   return {
     left: diffDays(rangeStart.value, s) * PPD + 'px',
-    width: (diffDays(s, e) + 1) * PPD - 2 + 'px',
-    ...(c ? { background: c, color: textOn(c) } : {})
+    width: (diffDays(s, e) + 1) * PPD - 2 + 'px'
   }
 }
 
+// 長條一律依優先度（完成為灰）
 function barClass (t) {
-  if (boardColor(t)) return ''
   return t.completed_at ? 'bg-grey-5' : `bg-${priorityColor(t.priority)}`
 }
 
-// 左側名稱底色：看板色加透明度，淡淡的
+// 總時程表：左側事項名稱底色套用看板顏色（25% 透明），長條不變
 function labelStyle (t) {
-  const c = boardColor(t)
-  return c ? { background: c + '33' } : {}
+  const c = props.showBoard ? boardOf(t)?.color : null
+  return c ? { background: c + '40' } : {}
 }
 
 function onScroll () {
