@@ -12,7 +12,7 @@ export const useUiStore = defineStore('ui', {
     filters: { priority: null, due: null, tags: [], search: '' }
   }),
   getters: {
-    filtering: (s) => !!(s.filters.priority || s.filters.due || s.filters.tags.length || s.filters.search.trim())
+    filtering: (s) => !!(s.filters.priority || s.filters.due || s.filters.tags?.length || (s.filters.search || '').trim())
   },
   actions: {
     setCurrentBoard (id) {

@@ -56,7 +56,7 @@ export function filterTasks (tasks, f) {
   return tasks.filter(t =>
     (!f.priority || t.priority === f.priority) &&
     (!f.due || dueBucket(t) === f.due) &&
-    (!f.tags?.length || f.tags.every(tag => t.tags?.includes(tag))) &&
+    (!f.tags?.length || f.tags.every(tag => (t.tags || []).includes(tag))) &&
     (!q || t.title.toLowerCase().includes(q) || (t.description || '').toLowerCase().includes(q))
   )
 }
