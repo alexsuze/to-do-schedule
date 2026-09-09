@@ -4,7 +4,7 @@ import api from '../services/api'
 
 // 顯示後端回傳的錯誤訊息（BoardService 會給中文 message）
 function notifyError (e) {
-  Notify.create({ type: 'negative', message: e.response?.data?.message || e.message })
+  Notify.create({ type: 'negative', message: e.response?.data?.detail || e.message })
   throw e
 }
 

@@ -39,7 +39,7 @@ cd backend && ./mvnw -q -DskipTests package     # 驗證可打包
 
 ## 慣例
 - 所有後端 API 路徑以 `/api/` 開頭，回傳 JSON（欄位 snake_case）；前端一律透過 `frontend/src/services/api.js` 呼叫（已自動帶 Token）。
-- 後端業務錯誤丟 `ResponseStatusException` 並帶中文 message，前端 store 統一 Notify 顯示。
+- 後端業務錯誤丟 `ResponseStatusException` 並帶中文訊息（Problem Details 格式，訊息在 `detail`），前端 store 統一 Notify 顯示。
 - 資料模型與欄位名稱依需求書第 6 節（snake_case 存於 Mongo）。
 - 軟刪除：`deleted_at` 非 null 即視為刪除，查詢需排除。
 - 時間以 UTC 存，前端依設定時區顯示。
