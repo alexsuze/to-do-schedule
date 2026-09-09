@@ -43,6 +43,12 @@
           <q-item-section avatar><q-icon name="add" /></q-item-section>
           <q-item-section>新增看板</q-item-section>
         </q-item>
+
+        <q-separator class="q-my-sm" />
+        <q-item clickable :to="{ name: 'trash' }" active-class="bg-blue-1 text-primary">
+          <q-item-section avatar><q-icon name="delete" /></q-item-section>
+          <q-item-section>回收桶</q-item-section>
+        </q-item>
       </q-list>
     </q-drawer>
 
