@@ -12,15 +12,15 @@
 
 - **軟刪除**：`deleted_at` 為 null 代表正常資料；非 null 代表已刪除、進回收桶。所有一般查詢都必須加上 `deleted_at == null` 條件。回收桶保留 30 天後由後端排程永久刪除。
 - **時間戳**：`created_at` 建立時填入；`updated_at` 每次修改自動更新。
-- **ID**：`_id` 皆為 MongoDB ObjectId，API 以 24 碼十六進位字串傳遞。
+- **ID**：`_id` 皆為 MongoDB ObjectId，API 以 24 碼十六進位字串傳遞。參照欄位（`board_id`、`column_id`、`task_id`）與內嵌 Column 的 `_id` 以**字串**形式儲存該 hex 值，不用 DBRef。
 - **排序值 `order`**：從 0 開始的整數，數字小的排前面；只在同一群組內比較（例如同一看板的欄位、同一欄位內的事項）。
 
 ## 各 collection 總覽
 
 | collection | 用途 | 建立階段 |
 |-----------|------|---------|
-| `boards` | 看板與其內嵌的欄位 | 階段 1 |
-| `tasks` | 工作事項 | 階段 2 |
+| `boards` | 看板與其內嵌的欄位 | 階段 1（已實作） |
+| `tasks` | 工作事項 | 階段 2（已實作） |
 | `settings` | 全域設定（只有一筆） | 階段 5 |
 | `notifications` | Email 通知排程與寄送紀錄 | 階段 5 |
 
@@ -82,7 +82,7 @@
 
 ---
 
-## tasks（工作事項）— 階段 2
+## tasks（工作事項）— 階段 2（已實作）
 
 系統最小管理單位，每筆必屬於一個看板與該看板的一個欄位。
 
@@ -94,7 +94,7 @@
 | `title` | String | 是 | 標題，1～100 字 |
 | `description` | String / null | 否 | 描述，支援多行 |
 | `priority` | String | 是 | 優先度：`high` / `medium` / `low`，預設 `medium` |
-| `start_date` | Date / null | 否 | 開始日期（只取日期部分），時程表起點 |
+| `start_date` | Date / null | 否 | 開始日期（Java `LocalDate`，存為當日 00:00 UTC），時程表起點 |
 | `due_at` | Date / null | 否 | 到期日期時間（UTC），時程表終點，亦為通知依據；不可早於 `start_date` |
 | `order` | Int | 是 | 同一欄位內的排序 |
 | `tags` | Array\<String\> | 是 | 標籤，可為空陣列 |
@@ -117,9 +117,7 @@
 - 只對「有 `due_at`」且「不在完成類型欄位」且「未刪除」的事項排程通知。
 
 ### 索引
-- `{ board_id: 1, deleted_at: 1 }`：看板內事項列表。
-- `{ due_at: 1 }`：時程表與通知掃描。
-- `{ deleted_at: 1 }`：回收桶列表與 30 天清理。
+- ponytail: 目前未建立。日後需要時：`{ board_id: 1, deleted_at: 1 }`（看板內列表）、`{ column_id: 1, deleted_at: 1 }`（欄內排序）、`{ due_at: 1 }`（時程表與通知掃描）、`{ deleted_at: 1 }`（回收桶清理）。
 
 ---
 
@@ -187,3 +185,4 @@ settings（獨立，單一文件）
 | 日期 | 內容 |
 |------|------|
 | 2026-09-09 | 初版，依需求書 v0.5 整理；補充 Column `_id`、settings 固定 `_id`、各索引用途與階段標示 |
+| 2026-09-09 | 階段 2：tasks 已實作；註明參照欄位以字串儲存、`start_date` 為 LocalDate、索引暫不建立 |

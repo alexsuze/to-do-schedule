@@ -24,6 +24,9 @@ public class BoardController {
     /** name / color / last_view_mode 皆可省略，省略者不變更。 */
     public record BoardRequest(String name, String color, String lastViewMode) {}
 
+    /** removed_tasks：被移除欄位內事項的處理，"delete" 或目標欄位 id，省略時若有事項會回 409。 */
+    public record ColumnsRequest(List<Column> columns, String removedTasks) {}
+
     private final BoardService service;
 
     public BoardController(BoardService service) {
@@ -56,9 +59,9 @@ public class BoardController {
         service.delete(id);
     }
 
-    /** body 為完整欄位陣列，整批覆寫。 */
+    /** body: { columns: [...], removed_tasks: ... }，整批覆寫欄位。 */
     @PutMapping("/{id}/columns")
-    public Board updateColumns(@PathVariable String id, @RequestBody List<Column> columns) {
-        return service.updateColumns(id, columns);
+    public Board updateColumns(@PathVariable String id, @RequestBody ColumnsRequest req) {
+        return service.updateColumns(id, req.columns(), req.removedTasks());
     }
 }

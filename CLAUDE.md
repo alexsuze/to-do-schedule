@@ -21,7 +21,7 @@
 ## Repo 結構（monorepo）
 ```
 Doc/        需求書、開發進度
-frontend/   src/{router,layouts,pages,stores,services,css}
+frontend/   src/{router,layouts,pages,components,stores,services,utils,css}
 backend/    src/main/java/com/todoschedule/{config,controller,model,repository,service}
 .github/workflows/
 ```

@@ -56,9 +56,10 @@ export const useBoardsStore = defineStore('boards', {
       } catch (e) { notifyError(e) }
     },
     // columns 為完整陣列，順序即顯示順序；新欄位 id 留空
-    async saveColumns (id, columns) {
+    // removedTasks：被移除欄位內事項的處理，'delete' 或目標欄位 id
+    async saveColumns (id, columns, removedTasks = null) {
       try {
-        const { data } = await api.put(`/boards/${id}/columns`, columns)
+        const { data } = await api.put(`/boards/${id}/columns`, { columns, removed_tasks: removedTasks })
         this.boards.splice(this.boards.findIndex(b => b.id === id), 1, data)
         return data
       } catch (e) { notifyError(e) }
