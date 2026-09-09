@@ -37,7 +37,7 @@ cp .env.example .env.local      # 依需要修改 API 網址與 Token
 npm install
 npm run dev                     # http://localhost:5173
 ```
-首頁的「測試後端連線」按鈕可驗證前後端與 Token 是否正確。
+開啟首頁後側邊欄應出現「我的工作」看板，代表前後端與資料庫皆已接通。
 
 ## 部署
 

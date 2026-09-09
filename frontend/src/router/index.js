@@ -6,7 +6,9 @@ const routes = [
     path: '/',
     component: () => import('../layouts/MainLayout.vue'),
     children: [
-      { path: '', name: 'home', component: () => import('../pages/HomePage.vue') }
+      // 無 id 時由 BoardPage 導向最後開啟的看板
+      { path: '', name: 'home', component: () => import('../pages/BoardPage.vue') },
+      { path: 'boards/:id', name: 'board', component: () => import('../pages/BoardPage.vue') }
     ]
   }
 ]

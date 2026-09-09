@@ -6,6 +6,7 @@
 ## 必讀文件
 - `Doc/工作事項管理系統-需求書.md`：完整需求（v0.5，已結案，可開發）。任何功能實作以此為準。
 - `Doc/開發進度.md`：目前進度、已完成項目、下一步待辦。**每次完成一個階段都要更新此檔。**
+- `Doc/MongoDB資料結構.md`：所有 collection 的欄位、型別、用途與索引。**新增或修改欄位時同步更新。**
 - `README.md`：本機啟動與部署步驟。
 
 ## 技術架構（已定案，勿更動）
@@ -21,7 +22,7 @@
 ```
 Doc/        需求書、開發進度
 frontend/   src/{router,layouts,pages,stores,services,css}
-backend/    src/main/java/com/todoschedule/{config,controller}  （後續加 model, repository, service）
+backend/    src/main/java/com/todoschedule/{config,controller,model,repository,service}
 .github/workflows/
 ```
 
@@ -37,7 +38,8 @@ cd backend && ./mvnw -q -DskipTests package     # 驗證可打包
 本機沒有 MongoDB，後端 `/actuator/health` 會 DOWN 屬正常；`/actuator/health/liveness` 與 `/api/ping` 可用。
 
 ## 慣例
-- 所有後端 API 路徑以 `/api/` 開頭，回傳 JSON；前端一律透過 `frontend/src/services/api.js` 呼叫（已自動帶 Token）。
+- 所有後端 API 路徑以 `/api/` 開頭，回傳 JSON（欄位 snake_case）；前端一律透過 `frontend/src/services/api.js` 呼叫（已自動帶 Token）。
+- 後端業務錯誤丟 `ResponseStatusException` 並帶中文 message，前端 store 統一 Notify 顯示。
 - 資料模型與欄位名稱依需求書第 6 節（snake_case 存於 Mongo）。
 - 軟刪除：`deleted_at` 非 null 即視為刪除，查詢需排除。
 - 時間以 UTC 存，前端依設定時區顯示。
