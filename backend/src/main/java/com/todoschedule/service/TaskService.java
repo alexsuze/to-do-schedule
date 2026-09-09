@@ -44,6 +44,12 @@ public class TaskService {
         return repo.findByBoardIdAndDeletedAtIsNullOrderByOrderAsc(boardId);
     }
 
+    /** 全部未刪除看板的事項（總時程表）。 */
+    public List<Task> listAll() {
+        List<String> active = boards.list().stream().map(b -> b.id).toList();
+        return repo.findByDeletedAtIsNull().stream().filter(t -> active.contains(t.boardId)).toList();
+    }
+
     public Task get(String id) {
         return repo.findById(id)
                 .filter(t -> t.deletedAt == null)

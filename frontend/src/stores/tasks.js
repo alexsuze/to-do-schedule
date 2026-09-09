@@ -25,6 +25,16 @@ export const useTasksStore = defineStore('tasks', {
         this.tasks = (await api.get(`/boards/${boardId}/tasks`)).data
       } catch (e) { notifyError(e) }
     },
+    // 總時程表：全部看板的事項，boardId 設為 null
+    async loadAll () {
+      this.boardId = null
+      try {
+        this.tasks = (await api.get('/tasks')).data
+      } catch (e) { notifyError(e) }
+    },
+    reload () {
+      return this.boardId ? this.load(this.boardId) : this.loadAll()
+    },
     async create (title) {
       try {
         const { data } = await api.post(`/boards/${this.boardId}/tasks`, { title })
@@ -58,10 +68,10 @@ export const useTasksStore = defineStore('tasks', {
       try {
         await api.put(`/tasks/${id}/move`, { board_id: boardId, column_id: columnId, index })
       } catch (e) {
-        await this.load(this.boardId)
+        await this.reload()
         notifyError(e)
       }
-      await this.load(this.boardId)
+      await this.reload()
     },
     async remove (id) {
       try {

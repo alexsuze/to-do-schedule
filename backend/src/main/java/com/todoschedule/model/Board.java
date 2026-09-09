@@ -39,6 +39,8 @@ public class Board {
         @Id
         public String id;
         public String name;
+        /** 欄位底色（色碼），null 用預設。 */
+        public String color;
         public int order;
         @Field("is_done_type")
         public boolean isDoneType;

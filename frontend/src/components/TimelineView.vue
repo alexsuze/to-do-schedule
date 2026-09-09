@@ -24,16 +24,16 @@
             <div class="tl-today" :style="{ left: LABEL_W + todayX + 'px' }" />
             <div v-for="t in scheduled" :key="t.id" class="tl-row">
               <div class="tl-label cursor-pointer" @click="$emit('edit', t)">
-                <span class="ellipsis">{{ t.title }}</span>
+                <span class="ellipsis">{{ label(t) }}</span>
                 <span v-if="outOfRange(t)" class="text-caption text-grey q-ml-xs">（範圍外）</span>
               </div>
               <div class="tl-track" :style="trackStyle">
                 <div class="tl-bar cursor-pointer" :class="barClass(t)" :style="barStyle(t)" @click="$emit('edit', t)">
-                  <span class="ellipsis">{{ t.title }}</span>
+                  <span class="ellipsis">{{ label(t) }}</span>
                   <q-tooltip anchor="top middle" self="bottom middle" :delay="300" class="bg-grey-9 text-body2" max-width="320px">
                     <div class="text-weight-bold">{{ t.title }}</div>
                     <div v-if="t.description" class="q-mt-xs tl-desc">{{ t.description }}</div>
-                    <div class="q-mt-xs">狀態：{{ columnName(t.column_id) }}</div>
+                    <div class="q-mt-xs">看板：{{ boardOf(t)?.name || '' }}　狀態：{{ columnName(t) }}</div>
                     <div>{{ isoToLocal(t.start_at) || '—' }} ～ {{ isoToLocal(t.due_at) || '—' }}</div>
                   </q-tooltip>
                 </div>
@@ -56,7 +56,7 @@
       <q-list bordered separator dense>
         <q-item v-for="t in unscheduled" :key="t.id" clickable @click="$emit('edit', t)">
           <q-item-section avatar><q-badge :color="priorityColor(t.priority)" rounded /></q-item-section>
-          <q-item-section :class="{ 'text-strike text-grey': t.completed_at }">{{ t.title }}</q-item-section>
+          <q-item-section :class="{ 'text-strike text-grey': t.completed_at }">{{ label(t) }}</q-item-section>
         </q-item>
       </q-list>
     </div>
@@ -68,8 +68,9 @@ import { computed, nextTick, onMounted, ref } from 'vue'
 import { priorityColor, isoToLocal } from '../utils/task'
 
 const props = defineProps({
-  board: { type: Object, required: true },
-  tasks: { type: Array, required: true } // 已套用篩選
+  boards: { type: Array, required: true }, // 單一看板頁傳 [board]，總時程表傳全部
+  tasks: { type: Array, required: true }, // 已套用篩選
+  showBoard: Boolean // 名稱前加「(看板前兩字)」
 })
 defineEmits(['edit'])
 
@@ -94,7 +95,9 @@ const WEEKDAY = ['日', '一', '二', '三', '四', '五', '六']
 
 const scheduled = computed(() => props.tasks.filter(t => t.start_at || t.due_at))
 const unscheduled = computed(() => props.tasks.filter(t => !t.start_at && !t.due_at))
-const columnName = id => props.board.columns.find(c => c.id === id)?.name || ''
+const boardOf = t => props.boards.find(b => b.id === t.board_id)
+const columnName = t => boardOf(t)?.columns.find(c => c.id === t.column_id)?.name || ''
+const label = t => props.showBoard ? `(${(boardOf(t)?.name || '').slice(0, 2)})${t.title}` : t.title
 
 const rangeStart = computed(() => addDays(today, -(BEFORE + extraBefore.value)))
 const rangeDays = computed(() => BEFORE + extraBefore.value + 1 + AFTER + extraAfter.value)

@@ -34,6 +34,12 @@ public class TaskController {
         return service.list(boardId);
     }
 
+    /** 全部看板的事項（總時程表）。 */
+    @GetMapping("/tasks")
+    public List<Task> listAll() {
+        return service.listAll();
+    }
+
     /** body: { "title": "..." } */
     @PostMapping("/boards/{boardId}/tasks")
     public Task create(@PathVariable String boardId, @RequestBody Map<String, String> body) {

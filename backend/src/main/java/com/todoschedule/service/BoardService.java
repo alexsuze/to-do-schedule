@@ -110,7 +110,9 @@ public class BoardService {
         for (int i = 0; i < columns.size(); i++) {
             Column c = columns.get(i);
             String colId = (c.id == null || c.id.isBlank()) ? newId() : c.id;
-            result.add(Column.of(colId, requireName(c.name, 30, "欄位名稱"), i, c.isDoneType));
+            Column col = Column.of(colId, requireName(c.name, 30, "欄位名稱"), i, c.isDoneType);
+            col.color = blankToNull(c.color);
+            result.add(col);
         }
 
         for (Column old : board.columns) {

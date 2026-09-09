@@ -44,13 +44,8 @@ export const useBoardsStore = defineStore('boards', {
         this.boards = this.boards.filter(b => b.id !== id)
       } catch (e) { notifyError(e) }
     },
-    // dir = -1 上移、+1 下移
-    async move (id, dir) {
-      const ids = this.boards.map(b => b.id)
-      const i = ids.indexOf(id)
-      const j = i + dir
-      if (j < 0 || j >= ids.length) return
-      ;[ids[i], ids[j]] = [ids[j], ids[i]]
+    // ids 為拖曳後的完整順序
+    async reorder (ids) {
       try {
         this.boards = (await api.put('/boards/reorder', ids)).data
       } catch (e) { notifyError(e) }

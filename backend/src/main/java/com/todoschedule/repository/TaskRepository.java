@@ -10,6 +10,9 @@ public interface TaskRepository extends MongoRepository<Task, String> {
 
     List<Task> findByBoardIdAndDeletedAtIsNullOrderByOrderAsc(String boardId);
 
+    /** 總時程表用：全部未刪除事項。 */
+    List<Task> findByDeletedAtIsNull();
+
     List<Task> findByColumnIdAndDeletedAtIsNullOrderByOrderAsc(String columnId);
 
     /* 回收桶 */

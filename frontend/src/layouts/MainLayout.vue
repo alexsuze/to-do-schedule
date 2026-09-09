@@ -9,35 +9,36 @@
 
     <q-drawer v-model="leftOpen" show-if-above bordered>
       <q-list>
-        <q-item-label header>看板</q-item-label>
+        <q-item-label header>看板（拖曳圖示可排序）</q-item-label>
 
-        <q-item
-          v-for="(b, i) in boards.boards"
-          :key="b.id"
-          clickable
-          :active="b.id === ui.currentBoardId"
-          active-class="bg-blue-1 text-primary"
-          :to="{ name: 'board', params: { id: b.id } }"
-        >
-          <q-item-section avatar>
-            <q-icon name="dashboard" :style="{ color: b.color || '#1976d2' }" />
-          </q-item-section>
-          <q-item-section>{{ b.name }}</q-item-section>
-          <q-item-section side>
-            <q-btn flat dense round icon="more_vert" @click.prevent.stop>
-              <q-menu auto-close>
-                <q-list dense style="min-width: 140px">
-                  <q-item clickable @click="rename(b)"><q-item-section>重新命名</q-item-section></q-item>
-                  <q-item clickable @click="changeColor(b)"><q-item-section>變更顏色</q-item-section></q-item>
-                  <q-item clickable :disable="i === 0" @click="boards.move(b.id, -1)"><q-item-section>上移</q-item-section></q-item>
-                  <q-item clickable :disable="i === boards.boards.length - 1" @click="boards.move(b.id, 1)"><q-item-section>下移</q-item-section></q-item>
-                  <q-separator />
-                  <q-item clickable class="text-negative" @click="remove(b)"><q-item-section>刪除</q-item-section></q-item>
-                </q-list>
-              </q-menu>
-            </q-btn>
-          </q-item-section>
-        </q-item>
+        <!-- 拖曳排序：放開後送整批順序 -->
+        <draggable :list="items" item-key="id" handle=".board-handle" @end="onDrop">
+          <template #item="{ element: b }">
+            <q-item
+              clickable
+              :active="b.id === ui.currentBoardId"
+              active-class="bg-blue-1 text-primary"
+              :to="{ name: 'board', params: { id: b.id } }"
+            >
+              <q-item-section avatar class="board-handle cursor-move">
+                <q-icon name="dashboard" :style="{ color: b.color || '#1976d2' }" />
+              </q-item-section>
+              <q-item-section>{{ b.name }}</q-item-section>
+              <q-item-section side>
+                <q-btn flat dense round icon="more_vert" @click.prevent.stop>
+                  <q-menu auto-close>
+                    <q-list dense style="min-width: 140px">
+                      <q-item clickable @click="rename(b)"><q-item-section>重新命名</q-item-section></q-item>
+                      <q-item clickable @click="coloring = b"><q-item-section>變更顏色</q-item-section></q-item>
+                      <q-separator />
+                      <q-item clickable class="text-negative" @click="remove(b)"><q-item-section>刪除</q-item-section></q-item>
+                    </q-list>
+                  </q-menu>
+                </q-btn>
+              </q-item-section>
+            </q-item>
+          </template>
+        </draggable>
 
         <q-item clickable @click="create">
           <q-item-section avatar><q-icon name="add" /></q-item-section>
@@ -45,6 +46,10 @@
         </q-item>
 
         <q-separator class="q-my-sm" />
+        <q-item clickable :to="{ name: 'timeline' }" active-class="bg-blue-1 text-primary">
+          <q-item-section avatar><q-icon name="timeline" /></q-item-section>
+          <q-item-section>總時程表</q-item-section>
+        </q-item>
         <q-item clickable :to="{ name: 'trash' }" active-class="bg-blue-1 text-primary">
           <q-item-section avatar><q-icon name="delete" /></q-item-section>
           <q-item-section>回收桶</q-item-section>
@@ -59,30 +64,37 @@
     <q-page-container>
       <router-view />
     </q-page-container>
+
+    <ColorDialog :show="!!coloring" :model-value="coloring?.color" title="看板顏色"
+      @pick="c => boards.update(coloring.id, { color: c || '' })" @close="coloring = null" />
   </q-layout>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
+import draggable from 'vuedraggable'
 import { useBoardsStore } from '../stores/boards'
 import { useUiStore } from '../stores/ui'
+import ColorDialog from '../components/ColorDialog.vue'
 
 const $q = useQuasar()
 const router = useRouter()
 const boards = useBoardsStore()
 const ui = useUiStore()
 const leftOpen = ref(false)
+const coloring = ref(null)
 
-// 側邊欄辨識用色，固定幾組即可
-const COLORS = [
-  { label: '藍', value: '#1976d2' }, { label: '綠', value: '#21ba45' },
-  { label: '橘', value: '#f2c037' }, { label: '紅', value: '#c10015' },
-  { label: '紫', value: '#9c27b0' }, { label: '灰', value: '#607d8b' }
-]
+// draggable 需要可變陣列，用本地副本
+const items = ref([])
+watch(() => boards.boards, v => { items.value = [...v] }, { immediate: true, deep: true })
 
 boards.load()
+
+function onDrop () {
+  boards.reorder(items.value.map(b => b.id))
+}
 
 function create () {
   $q.dialog({
@@ -101,14 +113,6 @@ function rename (b) {
     prompt: { model: b.name, type: 'text', label: '名稱', maxlength: 50 },
     cancel: true
   }).onOk(name => boards.update(b.id, { name }))
-}
-
-function changeColor (b) {
-  $q.dialog({
-    title: '變更顏色',
-    options: { type: 'radio', model: b.color || COLORS[0].value, items: COLORS },
-    cancel: true
-  }).onOk(color => boards.update(b.id, { color }))
 }
 
 function remove (b) {

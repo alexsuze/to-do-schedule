@@ -14,7 +14,7 @@
     >
       <template #item="{ element: c }">
         <q-card flat bordered class="column-card column">
-          <q-card-section class="row items-center q-py-sm column-handle cursor-move">
+          <q-card-section class="row items-center q-py-sm column-handle cursor-move" :style="headerStyle(c)">
             <div class="text-subtitle1 ellipsis">{{ c.name }}</div>
             <q-badge color="grey-5" class="q-ml-sm">{{ (lists[c.id] || []).length }}</q-badge>
             <q-chip v-if="c.is_done_type" dense size="sm" color="positive" text-color="white" class="q-ml-sm">完成</q-chip>
@@ -23,6 +23,7 @@
               <q-menu auto-close>
                 <q-list dense style="min-width: 160px">
                   <q-item clickable @click="renameColumn(c)"><q-item-section>重新命名</q-item-section></q-item>
+                  <q-item clickable @click="coloring = c"><q-item-section>變更底色</q-item-section></q-item>
                   <q-item clickable @click="toggleDone(c)">
                     <q-item-section>{{ c.is_done_type ? '取消完成類型' : '設為完成類型' }}</q-item-section>
                   </q-item>
@@ -82,6 +83,9 @@
         </q-card>
       </template>
     </draggable>
+
+    <ColorDialog :show="!!coloring" :model-value="coloring?.color" title="欄位底色"
+      @pick="c => saveColumns(columns.map(x => x.id === coloring.id ? { ...x, color: c } : x))" @close="coloring = null" />
   </div>
 </template>
 
@@ -92,6 +96,7 @@ import draggable from 'vuedraggable'
 import { useBoardsStore } from '../stores/boards'
 import { useTasksStore } from '../stores/tasks'
 import { priorityColor, formatDue, dueState } from '../utils/task'
+import ColorDialog from './ColorDialog.vue'
 
 const props = defineProps({
   board: { type: Object, required: true },
@@ -109,6 +114,15 @@ const columns = ref([])
 const lists = reactive({})
 const adding = ref(null)
 const newTitle = ref('')
+const coloring = ref(null)
+
+// 底色深時文字改白
+function headerStyle (c) {
+  if (!c.color) return {}
+  const n = parseInt(c.color.slice(1), 16)
+  const lum = (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255
+  return { background: c.color, color: lum < 0.6 ? '#fff' : '#000' }
+}
 
 watch(() => props.board.columns, cols => { columns.value = [...(cols || [])] }, { immediate: true, deep: true })
 watch(() => [props.tasks, props.board.columns], () => {

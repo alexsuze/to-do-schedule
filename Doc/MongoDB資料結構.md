@@ -48,6 +48,7 @@
 |------|------|------|------|
 | `_id` | ObjectId | 系統 | 欄位識別碼；`tasks.column_id` 指向此值，欄位改名後事項不受影響 |
 | `name` | String | 是 | 欄位名稱，1～30 字 |
+| `color` | String / null | 否 | 欄位標題底色色碼，null 用預設（2026-09-09 新增） |
 | `order` | Int | 是 | 欄位由左到右順序 |
 | `is_done_type` | Boolean | 是 | 是否為「完成類型」。事項移入此類欄位會自動填 `tasks.completed_at` 並取消通知；移出則清除並重新排程 |
 
