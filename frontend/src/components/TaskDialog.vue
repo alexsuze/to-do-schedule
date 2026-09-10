@@ -39,12 +39,18 @@
               （{{ form.checklist.filter(i => i.done).length }}/{{ form.checklist.length }}）
             </span>
           </div>
-          <div v-for="(item, i) in form.checklist" :key="i" class="row items-center no-wrap q-gutter-x-xs">
-            <q-checkbox v-model="item.done" dense />
-            <q-input v-model="item.text" dense borderless class="col" maxlength="100"
-              :class="{ 'text-strike text-grey': item.done }" @keyup.enter="focusNewItem" />
-            <q-btn flat dense round size="sm" icon="close" @click="form.checklist.splice(i, 1)" />
-          </div>
+          <!-- 拖曳把手排序；儲存時依目前順序送出 -->
+          <draggable :list="form.checklist" item-key="_key" handle=".item-handle">
+            <template #item="{ element: item, index: i }">
+              <div class="row items-center no-wrap q-gutter-x-xs">
+                <q-icon name="drag_indicator" class="item-handle cursor-move text-grey-5" />
+                <q-checkbox v-model="item.done" dense />
+                <q-input v-model="item.text" dense borderless class="col" maxlength="100"
+                  :class="{ 'text-strike text-grey': item.done }" @keyup.enter="focusNewItem" />
+                <q-btn flat dense round size="sm" icon="close" @click="form.checklist.splice(i, 1)" />
+              </div>
+            </template>
+          </draggable>
           <q-input ref="newItemInput" v-model="newItem" dense outlined placeholder="新增待辦項目，按 Enter 加入" maxlength="100"
             class="q-mt-xs" @keyup.enter="addItem">
             <template #prepend><q-icon name="add" /></template>
@@ -84,6 +90,7 @@ import { useBoardsStore } from '../stores/boards'
 import { useTasksStore } from '../stores/tasks'
 import { LEAD_TIME_OPTIONS } from '../stores/settings'
 import { PRIORITIES, TYPES, isoToLocal, localToIso } from '../utils/task'
+import draggable from 'vuedraggable'
 import DateTimeField from './DateTimeField.vue'
 
 const props = defineProps({ task: { type: Object, default: null } })
@@ -102,7 +109,7 @@ const newItemInput = ref(null)
 function addItem () {
   const text = newItem.value.trim()
   if (!text) return
-  form.value.checklist.push({ text, done: false })
+  form.value.checklist.push({ text, done: false, _key: Date.now() })
   newItem.value = ''
 }
 function focusNewItem () { newItemInput.value?.focus() }
@@ -119,7 +126,7 @@ watch(() => props.task, t => {
     start_local: isoToLocal(t.start_at),
     due_local: isoToLocal(t.due_at),
     tags: [...(t.tags || [])],
-    checklist: (t.checklist || []).map(i => ({ ...i })),
+    checklist: (t.checklist || []).map((i, k) => ({ ...i, _key: k })), // _key 供拖曳識別，後端會忽略
     notify_mode: !t.notification_override ? 'default' : (t.notification_override.enabled ? 'custom' : 'off'),
     lead_times: [...(t.notification_override?.lead_times || [])]
   }
@@ -168,7 +175,7 @@ async function save () {
       start_at: localToIso(form.value.start_local),
       due_at: localToIso(form.value.due_local),
       tags: form.value.tags,
-      checklist: form.value.checklist,
+      checklist: form.value.checklist.map(({ text, done }) => ({ text, done })),
       notification_override: notificationOverride()
     })
     if (form.value.board_id !== t.board_id || form.value.column_id !== t.column_id) {
