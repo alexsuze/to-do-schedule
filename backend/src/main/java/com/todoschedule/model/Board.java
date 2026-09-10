@@ -20,6 +20,8 @@ public class Board {
     @Id
     public String id;
     public String name;
+    /** 看板頁標題旁的小標題，可為 null。 */
+    public String subtitle;
     public String color;
     public int order;
     @Field("last_view_mode")

@@ -59,9 +59,13 @@ public class BoardService {
     }
 
     /** 只更新有傳入（非 null）的欄位。 */
-    public Board update(String id, String name, String color, String lastViewMode) {
+    public Board update(String id, String name, String subtitle, String color, String lastViewMode) {
         Board board = get(id);
         if (name != null) board.name = requireName(name, 50, "看板名稱");
+        if (subtitle != null) {
+            if (subtitle.strip().length() > 100) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "小標題不可超過 100 字");
+            board.subtitle = blankToNull(subtitle);
+        }
         if (color != null) board.color = blankToNull(color);
         if (lastViewMode != null) {
             if (!VIEW_MODES.contains(lastViewMode)) {

@@ -34,6 +34,7 @@
 |------|------|------|------|
 | `_id` | ObjectId | 系統 | 看板識別碼 |
 | `name` | String | 是 | 看板名稱，1～50 字 |
+| `subtitle` | String / null | 否 | 看板頁標題旁的小標題，最多 100 字（2026-09-10 新增） |
 | `color` | String | 否 | 側邊欄辨識用色碼，如 `#1976d2`；null 時前端用預設色 |
 | `order` | Int | 是 | 側邊欄顯示順序，新看板為目前最大值 +1 |
 | `last_view_mode` | String | 是 | 該看板最後使用的檢視模式：`kanban` / `timeline` / `list`，預設 `kanban` |
@@ -201,4 +202,5 @@ settings（獨立，單一文件）
 | 2026-09-09 | 階段 2：tasks 已實作；註明參照欄位以字串儲存、索引暫不建立 |
 | 2026-09-09 | `start_date`（日期）改為 `start_at`（日期時間），前端預設開始 09:00、到期 18:00 |
 | 2026-09-10 | 新增 `type`（task / meeting） |
+| 2026-09-10 | boards 新增 `subtitle` |
 | 2026-09-09 | 階段 5：settings / notifications 已實作；notifications 加 `subject`，`last_board_id` 改為字串 |

@@ -5,6 +5,11 @@
     <template v-else>
       <div class="row items-center q-mb-md">
         <div class="text-h5">{{ board.name }}</div>
+        <!-- 小標題：點擊即可編輯 -->
+        <div class="q-ml-md text-subtitle1 text-grey-7 cursor-pointer" @click="editSubtitle">
+          {{ board.subtitle || '＋ 小標題' }}
+          <q-icon name="edit" size="xs" class="q-ml-xs" />
+        </div>
         <q-space />
         <q-btn-toggle :model-value="mode" unelevated toggle-color="primary" :options="MODES" @update:model-value="setMode" />
       </div>
@@ -22,6 +27,7 @@
 
 <script setup>
 import { computed, ref, watch } from 'vue'
+import { useQuasar } from 'quasar'
 import { useRoute, useRouter } from 'vue-router'
 import { useBoardsStore } from '../stores/boards'
 import { useTasksStore } from '../stores/tasks'
@@ -39,6 +45,7 @@ const MODES = [
   { label: '時程表', value: 'timeline', icon: 'timeline' }
 ]
 
+const $q = useQuasar()
 const route = useRoute()
 const router = useRouter()
 const boards = useBoardsStore()
@@ -50,6 +57,14 @@ const board = computed(() => boards.byId(ui.currentBoardId))
 const mode = computed(() => board.value?.last_view_mode || 'kanban')
 const visible = computed(() => filterTasks(tasks.tasks, ui.filters))
 const editing = ref(null)
+
+function editSubtitle () {
+  $q.dialog({
+    title: '小標題',
+    prompt: { model: board.value.subtitle || '', type: 'text', label: '小標題（留空即移除）', maxlength: 100 },
+    cancel: true
+  }).onOk(v => boards.update(board.value.id, { subtitle: v ?? '' }))
+}
 
 function setMode (m) {
   if (m && m !== mode.value) boards.update(board.value.id, { last_view_mode: m })
