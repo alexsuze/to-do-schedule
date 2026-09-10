@@ -87,6 +87,18 @@ class NotificationServiceTest {
     }
 
     @Test
+    void meetingSchedulesFromStartAndIgnoresDue() {
+        settings.defaultLeadTimes = List.of("1h");
+        Task m = task("todo", Instant.now().plus(Duration.ofDays(2)));
+        m.type = "meeting";
+        assertTrue(!service.eligible(m)); // 會議沒有開始時間就不提醒
+        m.startAt = Instant.now().plus(Duration.ofDays(1));
+        service.reschedule(m);
+        assertEquals(m.startAt.minus(Duration.ofHours(1)), pending().get(0).scheduledAt);
+        assertTrue(pending().get(0).subject.startsWith("[會議提醒]"));
+    }
+
+    @Test
     void notEligibleWhenDoneOverdueDisabledOrNoDue() {
         Instant due = Instant.now().plus(Duration.ofDays(1));
         assertTrue(service.eligible(task("todo", due)));

@@ -6,13 +6,24 @@ export const PRIORITIES = [
   { label: '低', value: 'low', color: 'primary' }
 ]
 
+export const TYPES = [
+  { label: '任務', value: 'task' },
+  { label: '會議', value: 'meeting' }
+]
+
 export const DUE_BUCKETS = [
   { label: '逾期', value: 'overdue' },
+  { label: '已結束', value: 'ended' },
   { label: '今天', value: 'today' },
   { label: '本週', value: 'week' },
   { label: '之後', value: 'later' },
   { label: '無日期', value: 'none' }
 ]
+
+export const isMeeting = t => t.type === 'meeting'
+
+// 提醒與顯示的基準時間：會議看開始，任務看到期
+export const anchorAt = t => isMeeting(t) ? t.start_at : t.due_at
 
 export function priorityColor (p) {
   return PRIORITIES.find(x => x.value === p)?.color || 'grey'
@@ -35,20 +46,33 @@ export function formatDue (iso) {
   return `${d.getMonth() + 1}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
-// 回傳 'done' | 'overdue' | 'soon' | ''
+// 回傳 'done' | 'overdue' | 'ended' | 'soon' | ''
+// 任務：到期前 24 小時 soon、過期 overdue；會議：開始前 24 小時 soon、結束（無結束則開始）後 ended
 export function dueState (task) {
   if (task.completed_at) return 'done'
-  if (!task.due_at) return ''
-  const diff = new Date(task.due_at) - Date.now()
+  const at = anchorAt(task)
+  if (!at) return ''
+  const now = Date.now()
+  if (isMeeting(task) && new Date(task.due_at || at) < now) return 'ended'
+  const diff = new Date(at) - now
   if (diff < 0) return 'overdue'
   if (diff < 24 * 3600 * 1000) return 'soon'
   return ''
 }
 
-// 到期分組：overdue / today / week（到本週日）/ later / none
+export function stateLabel (task) {
+  const s = dueState(task)
+  if (s === 'ended') return '已結束'
+  if (s === 'soon' && isMeeting(task)) return '即將開始'
+  return ''
+}
+
+// 到期分組：overdue / ended / today / week（到本週日）/ later / none（會議以開始時間分組）
 export function dueBucket (task) {
-  if (!task.due_at) return 'none'
-  const d = new Date(task.due_at)
+  const at = anchorAt(task)
+  if (!at) return 'none'
+  if (dueState(task) === 'ended') return 'ended'
+  const d = new Date(at)
   const now = new Date()
   if (d < now) return 'overdue'
   const endToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999)

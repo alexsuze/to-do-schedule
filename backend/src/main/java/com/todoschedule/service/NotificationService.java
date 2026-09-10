@@ -69,7 +69,7 @@ public class NotificationService {
         Instant now = Instant.now();
         List<Notification> created = new ArrayList<>();
         for (String lead : leads) {
-            Instant at = t.dueAt.minus(parseLeadTime(lead));
+            Instant at = t.anchorAt().minus(parseLeadTime(lead));
             // 同一事項同一提前時間、同一到期只寄一次
             boolean alreadySent = existing.stream().anyMatch(n -> Notification.SENT.equals(n.status)
                     && lead.equals(n.leadTime) && at.equals(n.scheduledAt));
@@ -82,7 +82,7 @@ public class NotificationService {
             created.add(n);
         }
         if (!created.isEmpty()) repo.saveAll(created);
-        if (now.isAfter(t.dueAt)) log.debug("事項 {} 已到期，不建立通知", t.id);
+        if (now.isAfter(t.anchorAt())) log.debug("事項 {} 已到期，不建立通知", t.id);
     }
 
     public void cancel(String taskId) {
@@ -102,10 +102,11 @@ public class NotificationService {
         return repo.findTop50ByOrderByCreatedAtDesc();
     }
 
-    /** 有到期、未刪除、不在完成欄、未到期、事項未關閉通知。 */
+    /** 有基準時間（任務：到期；會議：開始）、未刪除、不在完成欄、基準時間未過、事項未關閉通知。 */
     boolean eligible(Task t) {
-        if (t.dueAt == null || t.deletedAt != null || t.completedAt != null) return false;
-        if (t.dueAt.isBefore(Instant.now())) return false;
+        Instant at = t.anchorAt();
+        if (at == null || t.deletedAt != null || t.completedAt != null) return false;
+        if (at.isBefore(Instant.now())) return false;
         if (t.notificationOverride != null && !t.notificationOverride.enabled) return false;
         return boards.findById(t.boardId).filter(b -> b.deletedAt == null)
                 .map(b -> b.columns.stream().noneMatch(c -> c.id.equals(t.columnId) && c.isDoneType))
@@ -188,7 +189,9 @@ public class NotificationService {
     /* ---------- 信件內容 ---------- */
 
     private String subjectFor(Task t, Settings s) {
-        return "[工作提醒] " + t.title + " 將於 " + fmt(t.dueAt, s.timezone) + " 到期";
+        return t.isMeeting()
+                ? "[會議提醒] " + t.title + " 將於 " + fmt(t.startAt, s.timezone) + " 開始"
+                : "[工作提醒] " + t.title + " 將於 " + fmt(t.dueAt, s.timezone) + " 到期";
     }
 
     private String[] reminderBody(Task t, Settings s) {
@@ -198,18 +201,21 @@ public class NotificationService {
         String desc = t.description == null ? "" : (t.description.length() > 200 ? t.description.substring(0, 200) + "…" : t.description);
         String link = taskLink(t);
         String subject = subjectFor(t, s);
+        String when = t.isMeeting()
+                ? "開始：" + fmt(t.startAt, s.timezone) + (t.dueAt == null ? "" : "　結束：" + fmt(t.dueAt, s.timezone))
+                : "到期：" + fmt(t.dueAt, s.timezone);
         String text = String.join("\n",
                 "看板：" + boardName,
                 "標題：" + t.title,
                 desc.isEmpty() ? "" : "描述：" + desc,
                 "狀態：" + status,
                 "優先度：" + priorityLabel(t.priority),
-                "到期：" + fmt(t.dueAt, s.timezone),
+                when,
                 "開啟事項：" + link);
         String html = "<h3>" + esc(t.title) + "</h3>"
                 + "<p>看板：" + esc(boardName) + "<br>狀態：" + esc(status)
                 + "<br>優先度：" + priorityLabel(t.priority)
-                + "<br>到期：<b>" + fmt(t.dueAt, s.timezone) + "</b></p>"
+                + "<br><b>" + when + "</b></p>"
                 + (desc.isEmpty() ? "" : "<p style=\"white-space:pre-wrap\">" + esc(desc) + "</p>")
                 + "<p><a href=\"" + link + "\">開啟事項</a></p>";
         return new String[] { subject, html, text };
@@ -221,30 +227,36 @@ public class NotificationService {
         Map<String, Board> boardMap = new HashMap<>();
         boards.findByDeletedAtIsNullOrderByOrderAsc().forEach(b -> boardMap.put(b.id, b));
 
+        Instant startOfDay = today.atStartOfDay(zone).toInstant();
+        List<Task> meetings = new ArrayList<>();
         List<Task> due = new ArrayList<>();
         List<Task> overdue = new ArrayList<>();
         for (Board b : boardMap.values()) {
             for (Task t : tasks.findByBoardIdAndDeletedAtIsNullOrderByOrderAsc(b.id)) {
-                if (t.dueAt == null || t.completedAt != null) continue;
-                if (t.dueAt.isBefore(now)) overdue.add(t);
+                if (t.completedAt != null || t.anchorAt() == null) continue;
+                if (t.isMeeting()) {
+                    // 會議只列今天要開的，不算逾期
+                    if (!t.startAt.isBefore(startOfDay) && t.startAt.isBefore(endOfDay)) meetings.add(t);
+                } else if (t.dueAt.isBefore(now)) overdue.add(t);
                 else if (t.dueAt.isBefore(endOfDay)) due.add(t);
             }
         }
-        Comparator<Task> byDue = Comparator.comparing(t -> t.dueAt);
-        due.sort(byDue);
-        overdue.sort(byDue);
+        Comparator<Task> byAnchor = Comparator.comparing(Task::anchorAt);
+        meetings.sort(byAnchor);
+        due.sort(byAnchor);
+        overdue.sort(byAnchor);
 
-        String subject = "[每日摘要] " + today + " 今日到期 " + due.size() + " 項、逾期 " + overdue.size() + " 項";
+        String subject = "[每日摘要] " + today + " 今日會議 " + meetings.size() + " 場、到期 " + due.size() + " 項、逾期 " + overdue.size() + " 項";
         StringBuilder text = new StringBuilder();
         StringBuilder html = new StringBuilder();
-        for (var section : List.of(Map.entry("今日到期", due), Map.entry("逾期", overdue))) {
+        for (var section : List.of(Map.entry("今日會議", meetings), Map.entry("今日到期", due), Map.entry("逾期", overdue))) {
             text.append("\n【").append(section.getKey()).append("】").append(section.getValue().isEmpty() ? " 無" : "").append('\n');
             html.append("<h3>").append(section.getKey()).append("</h3>");
             if (section.getValue().isEmpty()) html.append("<p>無</p>");
             else html.append("<ul>");
             for (Task t : section.getValue()) {
                 String bn = Optional.ofNullable(boardMap.get(t.boardId)).map(b -> b.name).orElse("");
-                String line = fmt(t.dueAt, s.timezone) + "  " + t.title + "（" + bn + "）";
+                String line = fmt(t.anchorAt(), s.timezone) + "  " + t.title + "（" + bn + "）";
                 text.append("- ").append(line).append("  ").append(taskLink(t)).append('\n');
                 html.append("<li><a href=\"").append(taskLink(t)).append("\">").append(esc(line)).append("</a></li>");
             }

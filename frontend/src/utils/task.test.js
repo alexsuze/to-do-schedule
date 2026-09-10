@@ -11,6 +11,12 @@ test('dueState', () => {
   assert.equal(dueState({ due_at: hours(2) }), 'soon')
   assert.equal(dueState({ due_at: hours(48) }), '')
   assert.equal(dueState({}), '')
+  // 會議看開始時間，結束後為 ended 而非 overdue
+  assert.equal(dueState({ type: 'meeting', start_at: hours(2), due_at: hours(3) }), 'soon')
+  assert.equal(dueState({ type: 'meeting', start_at: hours(-2), due_at: hours(-1) }), 'ended')
+  assert.equal(dueState({ type: 'meeting', start_at: hours(-1) }), 'ended')
+  assert.equal(dueState({ type: 'meeting', start_at: hours(48) }), '')
+  assert.equal(dueBucket({ type: 'meeting', start_at: hours(-1) }), 'ended')
 })
 
 test('dueBucket', () => {

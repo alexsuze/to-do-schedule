@@ -95,7 +95,8 @@
 | `title` | String | 是 | 標題，1～100 字 |
 | `description` | String / null | 否 | 描述，支援多行 |
 | `priority` | String | 是 | 優先度：`high` / `medium` / `low`，預設 `medium` |
-| `start_at` | Date / null | 否 | 開始日期時間（UTC），時程表起點。需求書原為純日期，2026-09-09 依使用者要求改含時間 |
+| `type` | String | 是 | 性質：`task`（任務，提醒與逾期以 `due_at` 為準）/ `meeting`（會議，提醒與「即將開始 / 已結束」以 `start_at` 為準，必須有 `start_at`），預設 `task`；舊資料無此欄位視為 `task`（2026-09-10 新增） |
+| `start_at` | Date / null | 否 | 開始日期時間（UTC），時程表起點；會議必填，亦為會議通知依據。需求書原為純日期，2026-09-09 依使用者要求改含時間 |
 | `due_at` | Date / null | 否 | 到期日期時間（UTC），時程表終點，亦為通知依據；不可早於 `start_at` |
 | `order` | Int | 是 | 同一欄位內的排序 |
 | `tags` | Array\<String\> | 是 | 標籤，可為空陣列 |
@@ -123,7 +124,8 @@
 ### 業務規則
 - 復原時若原欄位已不存在，回到看板第一個欄位；若看板已刪除，需先復原看板。
 - 復原後若仍有未來的 `due_at` 且未完成，重新建立通知排程。
-- 只對「有 `due_at`」且「不在完成類型欄位」且「未刪除」的事項排程通知。
+- 只對「有基準時間（任務：`due_at`；會議：`start_at`）」且「不在完成類型欄位」且「未刪除」的事項排程通知。
+- 每日摘要：會議只列「今日會議」（`start_at` 在今天），不算入到期 / 逾期。
 
 ### 索引
 - ponytail: 目前未建立。日後需要時：`{ board_id: 1, deleted_at: 1 }`（看板內列表）、`{ column_id: 1, deleted_at: 1 }`（欄內排序）、`{ due_at: 1 }`（時程表與通知掃描）、`{ deleted_at: 1 }`（回收桶清理）。
@@ -198,4 +200,5 @@ settings（獨立，單一文件）
 | 2026-09-09 | 初版，依需求書 v0.5 整理；補充 Column `_id`、settings 固定 `_id`、各索引用途與階段標示 |
 | 2026-09-09 | 階段 2：tasks 已實作；註明參照欄位以字串儲存、索引暫不建立 |
 | 2026-09-09 | `start_date`（日期）改為 `start_at`（日期時間），前端預設開始 09:00、到期 18:00 |
+| 2026-09-10 | 新增 `type`（task / meeting） |
 | 2026-09-09 | 階段 5：settings / notifications 已實作；notifications 加 `subject`，`last_board_id` 改為字串 |

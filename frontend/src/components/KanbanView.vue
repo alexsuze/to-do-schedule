@@ -57,8 +57,9 @@
                 <q-card-section class="q-pa-sm">
                   <div class="text-body2">{{ t.title }}</div>
                   <div class="row items-center q-gutter-xs q-mt-xs">
-                    <span v-if="t.due_at" class="text-caption" :class="dueClass(t)">
-                      <q-icon name="schedule" size="xs" /> {{ formatDue(t.due_at) }}
+                    <span v-if="anchorAt(t)" class="text-caption" :class="dueClass(t)">
+                      <q-icon :name="isMeeting(t) ? 'event' : 'schedule'" size="xs" /> {{ formatDue(anchorAt(t)) }}
+                      {{ stateLabel(t) }}
                     </span>
                     <span v-if="t.checklist?.length" class="text-caption"
                       :class="t.checklist.every(i => i.done) ? 'text-positive' : 'text-grey-7'">
@@ -99,7 +100,7 @@ import { useQuasar } from 'quasar'
 import draggable from 'vuedraggable'
 import { useBoardsStore } from '../stores/boards'
 import { useTasksStore } from '../stores/tasks'
-import { priorityColor, formatDue, dueState, textOn } from '../utils/task'
+import { priorityColor, formatDue, dueState, stateLabel, anchorAt, isMeeting, textOn } from '../utils/task'
 import ColorDialog from './ColorDialog.vue'
 
 const props = defineProps({
@@ -132,7 +133,7 @@ watch(() => [props.tasks, props.board.columns], () => {
 }, { immediate: true, deep: true })
 
 function dueClass (t) {
-  return { overdue: 'text-negative text-weight-bold', soon: 'text-warning text-weight-bold' }[dueState(t)] || 'text-grey-7'
+  return { overdue: 'text-negative text-weight-bold', soon: 'text-warning text-weight-bold', ended: 'text-grey-5' }[dueState(t)] || 'text-grey-7'
 }
 
 /* ---------- 卡片 ---------- */

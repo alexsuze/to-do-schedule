@@ -21,9 +21,10 @@ import java.util.List;
 public class TaskService {
 
     private static final List<String> PRIORITIES = List.of("high", "medium", "low");
+    private static final List<String> TYPES = List.of("task", "meeting");
 
     /** 編輯視窗一次送完整欄位，null 即清空。 */
-    public record TaskRequest(String title, String description, String priority,
+    public record TaskRequest(String title, String description, String priority, String type,
                               Instant startAt, Instant dueAt, List<String> tags,
                               NotificationOverride notificationOverride,
                               List<ChecklistItem> checklist) {}
@@ -80,6 +81,13 @@ public class TaskService {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "優先度不正確");
             }
             t.priority = req.priority();
+        }
+        if (req.type() != null) {
+            if (!TYPES.contains(req.type())) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "性質不正確");
+            t.type = req.type();
+        }
+        if (t.isMeeting() && req.startAt() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "會議必須有開始時間");
         }
         validateDates(req.startAt(), req.dueAt());
         t.startAt = req.startAt();

@@ -27,6 +27,7 @@
         </template>
         <template #body-cell-title="p">
           <q-td :props="p" class="cursor-pointer" @click="$emit('edit', p.row)">
+            <q-icon v-if="isMeeting(p.row)" name="event" size="xs" class="q-mr-xs" />
             <span :class="{ 'text-strike text-grey': p.row.completed_at }">{{ p.row.title }}</span>
           </q-td>
         </template>
@@ -47,7 +48,7 @@
           </q-td>
         </template>
         <template #body-cell-due="p">
-          <q-td :props="p" :class="dueClass(p.row)">{{ isoToLocal(p.row.due_at) }}</q-td>
+          <q-td :props="p" :class="dueClass(p.row)">{{ isoToLocal(p.row.due_at) }} {{ stateLabel(p.row) }}</q-td>
         </template>
         <template #body-cell-tags="p">
           <q-td :props="p">
@@ -63,7 +64,7 @@
 import { computed, ref } from 'vue'
 import { useQuasar } from 'quasar'
 import { useTasksStore } from '../stores/tasks'
-import { PRIORITIES, DUE_BUCKETS, priorityColor, dueState, dueBucket, isoToLocal } from '../utils/task'
+import { PRIORITIES, DUE_BUCKETS, priorityColor, dueState, dueBucket, stateLabel, isMeeting, isoToLocal } from '../utils/task'
 
 const props = defineProps({
   board: { type: Object, required: true },
@@ -93,7 +94,7 @@ const columns = [
   { name: 'priority', label: '優先度', field: 'priority', align: 'left', sortable: true, style: 'width: 100px',
     sort: (a, b) => priorityRank(a) - priorityRank(b) },
   { name: 'start', label: '開始', field: r => isoToLocal(r.start_at), align: 'left', sortable: true },
-  { name: 'due', label: '到期', field: 'due_at', format: v => isoToLocal(v), align: 'left', sortable: true },
+  { name: 'due', label: '到期 / 結束', field: 'due_at', format: v => isoToLocal(v), align: 'left', sortable: true },
   { name: 'tags', label: '標籤', field: 'tags', align: 'left' }
 ]
 
@@ -108,7 +109,7 @@ const groups = computed(() => {
 })
 
 function dueClass (t) {
-  return { overdue: 'text-negative text-weight-bold', soon: 'text-warning text-weight-bold' }[dueState(t)] || ''
+  return { overdue: 'text-negative text-weight-bold', soon: 'text-warning text-weight-bold', ended: 'text-grey-5' }[dueState(t)] || ''
 }
 
 function add () {

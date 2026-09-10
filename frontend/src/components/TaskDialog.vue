@@ -12,6 +12,12 @@
           :rules="[v => !!v?.trim() || '標題不可為空白']" />
         <q-input v-model="form.description" label="描述" type="textarea" autogrow />
 
+        <div class="row items-center q-gutter-x-md">
+          <div class="text-subtitle2">性質</div>
+          <q-btn-toggle v-model="form.type" :options="TYPES" no-caps dense unelevated toggle-color="primary" />
+          <span class="text-caption text-grey">{{ meeting ? '提醒以開始時間為準' : '提醒以到期時間為準' }}</span>
+        </div>
+
         <div class="row q-col-gutter-md">
           <q-select class="col-12 col-sm-6" v-model="form.priority" :options="PRIORITIES" label="優先度"
             emit-value map-options />
@@ -20,9 +26,10 @@
         </div>
 
         <div class="row q-col-gutter-md">
-          <DateTimeField class="col-12 col-sm-6" v-model="form.start_local" label="開始時間" default-time="09:00" />
-          <DateTimeField class="col-12 col-sm-6" v-model="form.due_local" label="到期時間" default-time="18:00"
-            :hint="pastDueHint" />
+          <DateTimeField class="col-12 col-sm-6" v-model="form.start_local" :label="meeting ? '開始時間 *' : '開始時間'"
+            default-time="09:00" :hint="meeting && !form.start_local ? '會議必須有開始時間' : ''" />
+          <DateTimeField class="col-12 col-sm-6" v-model="form.due_local" :label="meeting ? '結束時間' : '到期時間'"
+            default-time="18:00" :hint="pastDueHint" />
         </div>
 
         <div>
@@ -51,7 +58,7 @@
           emit-value map-options />
 
         <div>
-          <div class="text-subtitle2 q-mb-xs">Email 通知</div>
+          <div class="text-subtitle2 q-mb-xs">Email 通知（{{ meeting ? '開始前' : '到期前' }}）</div>
           <q-option-group v-model="form.notify_mode" inline
             :options="[{ label: '沿用全域設定', value: 'default' }, { label: '自訂', value: 'custom' }, { label: '不通知', value: 'off' }]" />
           <q-select v-if="form.notify_mode === 'custom'" v-model="form.lead_times" :options="LEAD_TIME_OPTIONS"
@@ -76,7 +83,7 @@ import { useQuasar } from 'quasar'
 import { useBoardsStore } from '../stores/boards'
 import { useTasksStore } from '../stores/tasks'
 import { LEAD_TIME_OPTIONS } from '../stores/settings'
-import { PRIORITIES, isoToLocal, localToIso } from '../utils/task'
+import { PRIORITIES, TYPES, isoToLocal, localToIso } from '../utils/task'
 import DateTimeField from './DateTimeField.vue'
 
 const props = defineProps({ task: { type: Object, default: null } })
@@ -106,6 +113,7 @@ watch(() => props.task, t => {
     title: t.title,
     description: t.description || '',
     priority: t.priority,
+    type: t.type || 'task',
     column_id: t.column_id,
     board_id: t.board_id,
     start_local: isoToLocal(t.start_at),
@@ -126,13 +134,28 @@ watch(() => form.value.board_id, (id, old) => {
   if (old && id !== old) form.value.column_id = boards.byId(id)?.columns[0]?.id
 })
 
+const meeting = computed(() => form.value.type === 'meeting')
+
 const pastDueHint = computed(() => {
   const iso = localToIso(form.value.due_local)
-  return iso && new Date(iso) < Date.now() ? '到期時間已過，仍可儲存' : ''
+  return iso && new Date(iso) < Date.now() ? (meeting.value ? '結束時間已過，仍可儲存' : '到期時間已過，仍可儲存') : ''
+})
+
+// 會議：選了開始、還沒有結束時，結束預設開始 + 1 小時
+watch(() => form.value.start_local, v => {
+  if (!meeting.value || !v || form.value.due_local) return
+  const iso = localToIso(v)
+  if (!iso) return
+  const d = new Date(iso); d.setHours(d.getHours() + 1)
+  form.value.due_local = isoToLocal(d.toISOString())
 })
 
 async function save () {
   if (!form.value.title?.trim()) return
+  if (meeting.value && !localToIso(form.value.start_local)) {
+    $q.notify({ type: 'negative', message: '會議必須有開始時間' })
+    return
+  }
   addItem() // 輸入框還有字就一併加入
   saving.value = true
   try {
@@ -141,6 +164,7 @@ async function save () {
       title: form.value.title,
       description: form.value.description,
       priority: form.value.priority,
+      type: form.value.type,
       start_at: localToIso(form.value.start_local),
       due_at: localToIso(form.value.due_local),
       tags: form.value.tags,

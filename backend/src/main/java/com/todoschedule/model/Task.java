@@ -26,6 +26,8 @@ public class Task {
     public String title;
     public String description;
     public String priority = "medium";
+    /** 性質：task（任務，提醒以到期時間為準）/ meeting（會議，提醒以開始時間為準）。舊資料無此欄位視為 task。 */
+    public String type = "task";
     @Field("start_at")
     public Instant startAt;
     @Field("due_at")
@@ -47,6 +49,11 @@ public class Task {
     @LastModifiedDate
     @Field("updated_at")
     public Instant updatedAt;
+
+    public boolean isMeeting() { return "meeting".equals(type); }
+
+    /** 提醒與顯示的基準時間：會議看開始，任務看到期。 */
+    public Instant anchorAt() { return isMeeting() ? startAt : dueAt; }
 
     public static class ChecklistItem {
         public String text;
