@@ -33,6 +33,12 @@ public class Task {
     @Field("due_at")
     public Instant dueAt;
     public int order;
+    /** 所屬任務 id；有值即為「階段」卡片，只允許一層，且與所屬任務同看板。 */
+    @Field("parent_id")
+    public String parentId;
+    /** 階段在所屬任務內的順序（與欄位內的 order 無關）。 */
+    @Field("stage_order")
+    public int stageOrder;
     public List<String> tags = new ArrayList<>();
     /** 事項內的待辦清單（checkbox + 名稱）。 */
     public List<ChecklistItem> checklist = new ArrayList<>();

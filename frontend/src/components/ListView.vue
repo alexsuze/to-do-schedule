@@ -26,9 +26,12 @@
           </q-td>
         </template>
         <template #body-cell-title="p">
-          <q-td :props="p" class="cursor-pointer" @click="$emit('edit', p.row)">
+          <q-td :props="p" class="cursor-pointer" :class="{ 'q-pl-lg': p.row.parent_id }" @click="$emit('edit', p.row)">
+            <span v-if="p.row.parent_id" class="text-grey">↳ </span>
             <q-icon v-if="isMeeting(p.row)" name="event" size="xs" class="q-mr-xs" />
             <span :class="{ 'text-strike text-grey': p.row.completed_at }">{{ p.row.title }}</span>
+            <!-- 分組後階段可能不在所屬任務下方，補上任務名稱 -->
+            <span v-if="p.row.parent_id && groupBy" class="text-caption text-grey q-ml-xs">（{{ store.byId(p.row.parent_id)?.title }}）</span>
           </q-td>
         </template>
         <template #body-cell-status="p">
@@ -64,7 +67,7 @@
 import { computed, ref } from 'vue'
 import { useQuasar } from 'quasar'
 import { useTasksStore } from '../stores/tasks'
-import { PRIORITIES, DUE_BUCKETS, priorityColor, dueState, dueBucket, stateLabel, isMeeting, isoToLocal } from '../utils/task'
+import { PRIORITIES, DUE_BUCKETS, priorityColor, dueState, dueBucket, stateLabel, isMeeting, isoToLocal, nestStages } from '../utils/task'
 
 const props = defineProps({
   board: { type: Object, required: true },
@@ -100,12 +103,12 @@ const columns = [
 
 const groups = computed(() => {
   const all = props.tasks
-  if (!groupBy.value) return [{ key: 'all', label: '', rows: all }]
+  if (!groupBy.value) return [{ key: 'all', label: '', rows: nestStages(all) }]
   let defs
   if (groupBy.value === 'status') defs = props.board.columns.map(c => ({ key: c.id, label: c.name, pick: t => t.column_id === c.id }))
   else if (groupBy.value === 'priority') defs = PRIORITIES.map(p => ({ key: p.value, label: p.label, pick: t => t.priority === p.value }))
   else defs = DUE_BUCKETS.map(b => ({ key: b.value, label: b.label, pick: t => dueBucket(t) === b.value }))
-  return defs.map(d => ({ ...d, rows: all.filter(d.pick) })).filter(g => g.rows.length)
+  return defs.map(d => ({ ...d, rows: nestStages(all.filter(d.pick)) })).filter(g => g.rows.length)
 })
 
 function dueClass (t) {

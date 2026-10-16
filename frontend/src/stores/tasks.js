@@ -42,6 +42,20 @@ export const useTasksStore = defineStore('tasks', {
         return data
       } catch (e) { notifyError(e) }
     },
+    // 新增階段：放在所屬任務的看板（總時程表時 boardId 為 null，不能用 this.boardId）
+    async createStage (parent, title) {
+      try {
+        const { data } = await api.post(`/boards/${parent.board_id}/tasks`, { title, parent_id: parent.id })
+        this.tasks.push(data)
+        return data
+      } catch (e) { notifyError(e) }
+    },
+    async reorderStages (parentId, ids) {
+      try {
+        const { data } = await api.put(`/tasks/${parentId}/stages`, { ids })
+        data.forEach(t => this.replace(t))
+      } catch (e) { notifyError(e) }
+    },
     // fields：title, description, priority, start_at, due_at, tags（完整覆寫）
     async update (id, fields) {
       try {
@@ -77,7 +91,7 @@ export const useTasksStore = defineStore('tasks', {
     async remove (id) {
       try {
         await api.delete(`/tasks/${id}`)
-        this.tasks = this.tasks.filter(t => t.id !== id)
+        this.tasks = this.tasks.filter(t => t.id !== id && t.parent_id !== id) // 階段跟著刪
       } catch (e) { notifyError(e) }
     },
     replace (task) {

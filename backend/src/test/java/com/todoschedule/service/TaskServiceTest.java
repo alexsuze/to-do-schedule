@@ -51,23 +51,52 @@ class TaskServiceTest {
         when(taskRepo.findByColumnIdAndDeletedAtIsNullOrderByOrderAsc(anyString())).thenAnswer(inv ->
                 tasks.stream().filter(t -> t.deletedAt == null && t.columnId.equals(inv.getArgument(0)))
                         .sorted((a, b) -> Integer.compare(a.order, b.order)).toList());
+        when(taskRepo.findByParentIdAndDeletedAtIsNullOrderByStageOrderAsc(anyString())).thenAnswer(inv ->
+                tasks.stream().filter(t -> t.deletedAt == null && inv.getArgument(0).equals(t.parentId))
+                        .sorted((a, b) -> Integer.compare(a.stageOrder, b.stageOrder)).toList());
+        when(taskRepo.findByParentIdInAndDeletedAtIsNull(any())).thenAnswer(inv -> {
+            List<String> ids = inv.getArgument(0);
+            return tasks.stream().filter(t -> t.deletedAt == null && t.parentId != null && ids.contains(t.parentId)).toList();
+        });
+    }
+
+    @Test
+    void stagesOrderNestingAndCascadeDelete() {
+        Task p = service.create("b1", "P", null);
+        Task s1 = service.create("b1", "S1", p.id);
+        Task s2 = service.create("b1", "S2", p.id);
+        assertEquals(0, s1.stageOrder);
+        assertEquals(1, s2.stageOrder);
+        // 只允許一層
+        assertThrows(ResponseStatusException.class, () -> service.create("b1", "X", s1.id));
+
+        service.reorderStages(p.id, List.of(s2.id, s1.id));
+        assertEquals(0, s2.stageOrder);
+        assertEquals(1, s1.stageOrder);
+        assertThrows(ResponseStatusException.class, () -> service.reorderStages(p.id, List.of(p.id)));
+
+        // 刪除任務，階段一起刪且 deleted_at 相同
+        service.delete(p.id);
+        assertNotNull(p.deletedAt);
+        assertEquals(p.deletedAt, s1.deletedAt);
+        assertEquals(p.deletedAt, s2.deletedAt);
     }
 
     @Test
     void createGoesToFirstColumnAtEnd() {
-        Task a = service.create("b1", "A");
-        Task b = service.create("b1", "B");
+        Task a = service.create("b1", "A", null);
+        Task b = service.create("b1", "B", null);
         assertEquals(board.columns.get(0).id, a.columnId);
         assertEquals(0, a.order);
         assertEquals(1, b.order);
-        assertThrows(ResponseStatusException.class, () -> service.create("b1", " "));
+        assertThrows(ResponseStatusException.class, () -> service.create("b1", " ", null));
     }
 
     @Test
     void moveReordersAndSetsCompletedAt() {
-        Task a = service.create("b1", "A");
-        Task b = service.create("b1", "B");
-        Task c = service.create("b1", "C");
+        Task a = service.create("b1", "A", null);
+        Task b = service.create("b1", "B", null);
+        Task c = service.create("b1", "C", null);
         String todo = board.columns.get(0).id;
         String done = board.columns.get(2).id;
 
@@ -99,7 +128,7 @@ class TaskServiceTest {
 
     @Test
     void updateValidatesDatesAndCleansTags() {
-        Task a = service.create("b1", "A");
+        Task a = service.create("b1", "A", null);
         Instant start = Instant.parse("2026-09-10T01:00:00Z");
         Instant before = Instant.parse("2026-09-10T00:30:00Z");
         assertThrows(ResponseStatusException.class, () ->

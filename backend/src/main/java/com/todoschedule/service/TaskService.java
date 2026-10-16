@@ -12,7 +12,9 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 工作事項的業務規則（需求書 3.1、3.3.2）。變更後一律呼叫 notifications.reschedule 重算通知。
@@ -59,17 +61,42 @@ public class TaskService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "事項不存在"));
     }
 
-    /** 快速新增：只有標題，落在看板第一個欄位的最後。 */
-    public Task create(String boardId, String title) {
+    /** 快速新增：只有標題，落在看板第一個欄位的最後。parentId 有值時建立為該任務的最後一個階段。 */
+    public Task create(String boardId, String title, String parentId) {
         Board board = boards.get(boardId);
-        Column first = board.columns.stream().min((a, b) -> Integer.compare(a.order, b.order))
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "看板沒有任何欄位"));
+        Column first = firstColumn(board);
         Task t = new Task();
         t.boardId = board.id;
         t.columnId = first.id;
         t.title = BoardService.requireName(title, 100, "標題");
+        if (parentId != null) {
+            Task parent = get(parentId);
+            if (parent.parentId != null) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "階段底下不能再分階段");
+            }
+            if (!parent.boardId.equals(board.id)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "階段需與所屬任務在同一個看板");
+            }
+            t.parentId = parent.id;
+            t.stageOrder = stages(parent.id).stream().mapToInt(x -> x.stageOrder).max().orElse(-1) + 1;
+        }
         t.order = nextOrder(first.id);
         return repo.save(t);
+    }
+
+    /** 依傳入的 id 順序重排某任務的階段。 */
+    public List<Task> reorderStages(String parentId, List<String> ids) {
+        List<Task> list = new ArrayList<>();
+        for (int i = 0; i < ids.size(); i++) {
+            Task s = get(ids.get(i));
+            if (!parentId.equals(s.parentId)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "「" + s.title + "」不是此任務的階段");
+            }
+            s.stageOrder = i;
+            list.add(s);
+        }
+        repo.saveAll(list);
+        return stages(parentId);
     }
 
     public Task update(String id, TaskRequest req) {
@@ -115,6 +142,10 @@ public class TaskService {
     public Task move(String id, MoveRequest req) {
         Task t = get(id);
         Board board = boards.get(req.boardId() != null ? req.boardId() : t.boardId);
+        boolean boardChanged = !board.id.equals(t.boardId);
+        if (boardChanged && t.parentId != null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "階段需與所屬任務在同一個看板，請改移動所屬任務");
+        }
         Column col = findColumn(board, req.columnId());
 
         List<Task> target = new ArrayList<>(repo.findByColumnIdAndDeletedAtIsNullOrderByOrderAsc(col.id));
@@ -130,14 +161,54 @@ public class TaskService {
         for (int i = 0; i < target.size(); i++) target.get(i).order = i;
         repo.saveAll(target);
         notifications.reschedule(t);
+        if (boardChanged) moveStages(t, board);
         return t;
     }
 
+    /** 所屬任務換看板時階段一起搬：已完成的放第一個完成類型欄位，其餘放第一欄。 */
+    private void moveStages(Task parent, Board board) {
+        List<Task> list = stages(parent.id);
+        Column first = firstColumn(board);
+        Column done = board.columns.stream().filter(c -> c.isDoneType).findFirst().orElse(first);
+        for (Task s : list) {
+            Column col = s.completedAt != null ? done : first;
+            s.boardId = board.id;
+            s.columnId = col.id;
+            s.order = nextOrder(col.id);
+            s.completedAt = col.isDoneType ? (s.completedAt != null ? s.completedAt : Instant.now()) : null;
+            repo.save(s);
+        }
+        notifications.rescheduleAll(list);
+    }
+
+    /** 刪除任務時，其階段一起進回收桶（deleted_at 相同，復原時一起回來）。 */
     public void delete(String id) {
-        Task t = get(id);
-        t.deletedAt = Instant.now();
-        repo.save(t);
-        notifications.cancel(t.id);
+        List<Task> list = withStages(repo, List.of(get(id)));
+        Instant now = Instant.now();
+        for (Task t : list) t.deletedAt = now;
+        repo.saveAll(list);
+        notifications.cancelAll(list);
+    }
+
+    /** 傳入的事項加上它們尚未刪除的階段（已在清單中的不重複加）。刪除 / 自動進回收桶共用。 */
+    static List<Task> withStages(TaskRepository repo, List<Task> list) {
+        List<String> parentIds = list.stream().filter(t -> t.parentId == null).map(t -> t.id).toList();
+        if (parentIds.isEmpty()) return list;
+        List<Task> all = new ArrayList<>(list);
+        Set<String> seen = new HashSet<>(list.stream().map(t -> t.id).toList());
+        for (Task s : repo.findByParentIdInAndDeletedAtIsNull(parentIds)) {
+            if (seen.add(s.id)) all.add(s);
+        }
+        return all;
+    }
+
+    private List<Task> stages(String parentId) {
+        return repo.findByParentIdAndDeletedAtIsNullOrderByStageOrderAsc(parentId);
+    }
+
+    private static Column firstColumn(Board board) {
+        return board.columns.stream().min((a, b) -> Integer.compare(a.order, b.order))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "看板沒有任何欄位"));
     }
 
     static Column findColumn(Board board, String columnId) {

@@ -149,7 +149,8 @@ public class BoardService {
         return repo.save(board);
     }
 
-    private void softDeleteTasks(List<Task> list, Instant at) {
+    private void softDeleteTasks(List<Task> found, Instant at) {
+        List<Task> list = TaskService.withStages(tasks, found); // 刪欄位時，任務的階段可能在別欄
         for (Task t : list) t.deletedAt = at;
         tasks.saveAll(list);
         notifications.cancelAll(list);

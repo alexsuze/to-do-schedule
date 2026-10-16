@@ -21,7 +21,7 @@
       <TimelineView v-else :boards="[board]" :tasks="visible" @edit="editing = $event" />
     </template>
 
-    <TaskDialog :task="editing" @close="editing = null" />
+    <TaskDialog :task="editing" @close="editing = null" @open="editing = $event" />
   </q-page>
 </template>
 

@@ -8,7 +8,7 @@
     <FilterBar />
     <TimelineView :boards="boards.boards" :tasks="visible" show-board @edit="editing = $event" />
 
-    <TaskDialog :task="editing" @close="editing = null" />
+    <TaskDialog :task="editing" @close="editing = null" @open="editing = $event" />
   </q-page>
 </template>
 

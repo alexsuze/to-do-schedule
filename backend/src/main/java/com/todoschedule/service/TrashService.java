@@ -13,6 +13,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -72,10 +73,20 @@ public class TrashService {
         if (b.deletedAt != null) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "所屬看板「" + b.name + "」已刪除，請先復原看板");
         }
-        restoreInto(t, b);
-        Task saved = tasks.save(t);
-        notifications.reschedule(saved);
-        return saved;
+        if (t.parentId != null) {
+            Task parent = tasks.findById(t.parentId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "所屬任務不存在，無法復原"));
+            if (parent.deletedAt != null) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "所屬任務「" + parent.title + "」已刪除，請先復原所屬任務");
+            }
+        }
+        // 與任務同時被刪的階段一起復原
+        List<Task> list = new ArrayList<>(List.of(t));
+        list.addAll(tasks.findByParentIdAndDeletedAt(t.id, t.deletedAt));
+        for (Task x : list) restoreInto(x, b);
+        tasks.saveAll(list);
+        notifications.rescheduleAll(list);
+        return t;
     }
 
     /** 復原看板，並一併復原與看板同時被刪的事項。 */
@@ -95,6 +106,7 @@ public class TrashService {
     public void purgeTask(String id) {
         Task t = tasks.findById(id).filter(x -> x.deletedAt != null)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "回收桶中沒有此事項"));
+        tasks.deleteByParentIdAndDeletedAtIsNotNull(t.id); // 回收桶中的階段失去所屬任務就無法復原，一起刪
         tasks.delete(t);
     }
 
@@ -131,7 +143,10 @@ public class TrashService {
     @Scheduled(cron = "0 10 3 * * *")
     public void autoTrashCompleted() {
         Instant now = Instant.now();
-        List<Task> stale = tasks.findByCompletedAtBeforeAndDeletedAtIsNull(now.minus(AUTO_TRASH_AFTER_DONE));
+        // 階段不單獨進回收桶（否則所屬任務的進度會少算），跟著所屬任務一起進
+        List<Task> stale = TaskService.withStages(tasks,
+                tasks.findByCompletedAtBeforeAndDeletedAtIsNull(now.minus(AUTO_TRASH_AFTER_DONE)).stream()
+                        .filter(t -> t.parentId == null).toList());
         if (stale.isEmpty()) return;
         for (Task t : stale) t.deletedAt = now;
         tasks.saveAll(stale);

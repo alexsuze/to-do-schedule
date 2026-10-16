@@ -100,6 +100,8 @@
 | `start_at` | Date / null | 否 | 開始日期時間（UTC），時程表起點；會議必填，亦為會議通知依據。需求書原為純日期，2026-09-09 依使用者要求改含時間 |
 | `due_at` | Date / null | 否 | 到期日期時間（UTC），時程表終點，亦為通知依據；不可早於 `start_at` |
 | `order` | Int | 是 | 同一欄位內的排序 |
+| `parent_id` | String / null | 否 | 所屬任務（`tasks._id`）；有值即為「階段」卡片，只允許一層、與所屬任務同看板（2026-10-16 新增） |
+| `stage_order` | Int | 是 | 階段在所屬任務內的順序，與 `order` 無關；一般事項為 0（2026-10-16 新增） |
 | `tags` | Array\<String\> | 是 | 標籤，可為空陣列 |
 | `checklist` | Array\<ChecklistItem\> | 是 | 事項內的待辦清單，可為空陣列（2026-09-09 新增），結構見下表 |
 | `notification_override` | Object / null | 否 | 事項專屬通知設定；null 表示沿用全域設定，結構見下表 |
@@ -127,6 +129,7 @@
 - 復原後若仍有未來的 `due_at` 且未完成，重新建立通知排程。
 - 只對「有基準時間（任務：`due_at`；會議：`start_at`）」且「不在完成類型欄位」且「未刪除」的事項排程通知。
 - 每日摘要：會議只列「今日會議」（`start_at` 在今天），不算入到期 / 逾期。
+- 階段：目前階段 = 依 `stage_order` 第一個 `completed_at` 為 null 的階段（前端計算）。刪除任務時其未刪除的階段以相同 `deleted_at` 一起軟刪除，復原任務時以相同 `deleted_at` 一起復原；所屬任務已刪除時不可單獨復原階段；永久刪除任務時連同回收桶中的階段。任務換看板時階段一起搬。完成 10 天自動進回收桶只看沒有 `parent_id` 的事項，階段跟著任務一起。
 
 ### 索引
 - ponytail: 目前未建立。日後需要時：`{ board_id: 1, deleted_at: 1 }`（看板內列表）、`{ column_id: 1, deleted_at: 1 }`（欄內排序）、`{ due_at: 1 }`（時程表與通知掃描）、`{ deleted_at: 1 }`（回收桶清理）。
@@ -203,4 +206,5 @@ settings（獨立，單一文件）
 | 2026-09-09 | `start_date`（日期）改為 `start_at`（日期時間），前端預設開始 09:00、到期 18:00 |
 | 2026-09-10 | 新增 `type`（task / meeting） |
 | 2026-09-10 | boards 新增 `subtitle` |
+| 2026-10-16 | tasks 新增 `parent_id`、`stage_order`（多階段任務） |
 | 2026-09-09 | 階段 5：settings / notifications 已實作；notifications 加 `subject`，`last_board_id` 改為字串 |

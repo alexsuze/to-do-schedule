@@ -40,10 +40,16 @@ public class TaskController {
         return service.listAll();
     }
 
-    /** body: { "title": "..." } */
+    /** body: { "title": "...", "parent_id": "..."（選填，有值即建立為階段） } */
     @PostMapping("/boards/{boardId}/tasks")
     public Task create(@PathVariable String boardId, @RequestBody Map<String, String> body) {
-        return service.create(boardId, body.get("title"));
+        return service.create(boardId, body.get("title"), body.get("parent_id"));
+    }
+
+    /** 重排階段。body: { "ids": ["...", "..."] } */
+    @PutMapping("/tasks/{id}/stages")
+    public List<Task> reorderStages(@PathVariable String id, @RequestBody Map<String, List<String>> body) {
+        return service.reorderStages(id, body.get("ids"));
     }
 
     @PutMapping("/tasks/{id}")

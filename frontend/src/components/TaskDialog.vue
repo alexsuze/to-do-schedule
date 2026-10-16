@@ -2,12 +2,15 @@
   <q-dialog v-model="open" @hide="$emit('close')">
     <q-card style="width: 720px; max-width: 95vw">
       <q-card-section class="row items-center q-pb-none">
-        <div class="text-h6">編輯事項</div>
+        <div class="text-h6">{{ parent ? '編輯階段' : '編輯事項' }}</div>
         <q-space />
         <q-btn flat round dense icon="close" v-close-popup />
       </q-card-section>
 
       <q-card-section class="q-gutter-y-md">
+        <div v-if="parent" class="text-body2">
+          所屬任務：<a class="text-primary cursor-pointer" @click="openTask(parent)">{{ parent.title }}</a>
+        </div>
         <q-input v-model="form.title" label="標題 *" maxlength="100" autofocus
           :rules="[v => !!v?.trim() || '標題不可為空白']" />
         <q-input v-model="form.description" label="描述" type="textarea" autogrow />
@@ -57,10 +60,39 @@
           </q-input>
         </div>
 
+        <!-- 階段：每個階段是一張卡片，看板只顯示目前階段；新增與排序立即生效 -->
+        <div v-if="!parent">
+          <div class="text-subtitle2 q-mb-xs">
+            階段
+            <span v-if="stages.stages.length" class="text-caption text-grey">
+              （{{ stages.done }}/{{ stages.stages.length }}，看板只顯示目前階段）
+            </span>
+          </div>
+          <draggable :list="stageList" item-key="id" handle=".item-handle" @end="saveStageOrder">
+            <template #item="{ element: s }">
+              <div class="row items-center no-wrap q-gutter-x-sm q-py-xs">
+                <q-icon name="drag_indicator" class="item-handle cursor-move text-grey-5" />
+                <q-icon :name="s.completed_at ? 'check_circle' : s.id === stages.current?.id ? 'play_circle' : 'radio_button_unchecked'"
+                  :color="s.completed_at ? 'positive' : s.id === stages.current?.id ? 'primary' : 'grey-5'" />
+                <a class="col ellipsis cursor-pointer" :class="s.completed_at ? 'text-strike text-grey' : 'text-primary'"
+                  @click="openTask(s)">{{ s.title }}</a>
+                <span class="text-caption text-grey-7">{{ columnName(s) }}</span>
+                <span v-if="s.start_at || s.due_at" class="text-caption text-grey-7">
+                  {{ formatDue(s.start_at) || '—' }} ～ {{ formatDue(s.due_at) || '—' }}
+                </span>
+              </div>
+            </template>
+          </draggable>
+          <q-input v-model="newStage" dense outlined maxlength="100" class="q-mt-xs"
+            placeholder="新增階段，按 Enter 加入（點階段名稱可設定日期）" @keyup.enter="addStage">
+            <template #prepend><q-icon name="linear_scale" /></template>
+          </q-input>
+        </div>
+
         <q-select v-model="form.tags" label="標籤" multiple use-input use-chips new-value-mode="add-unique"
           hide-dropdown-icon hint="輸入後按 Enter 新增" />
 
-        <q-select v-model="form.board_id" :options="boardOptions" label="移至其他看板"
+        <q-select v-if="!parent" v-model="form.board_id" :options="boardOptions" label="移至其他看板（階段會一起移動）"
           emit-value map-options />
 
         <div>
@@ -89,12 +121,13 @@ import { useQuasar } from 'quasar'
 import { useBoardsStore } from '../stores/boards'
 import { useTasksStore } from '../stores/tasks'
 import { LEAD_TIME_OPTIONS } from '../stores/settings'
-import { PRIORITIES, TYPES, isoToLocal, localToIso } from '../utils/task'
+import { PRIORITIES, TYPES, isoToLocal, localToIso, formatDue, stageInfo } from '../utils/task'
 import draggable from 'vuedraggable'
 import DateTimeField from './DateTimeField.vue'
 
 const props = defineProps({ task: { type: Object, default: null } })
-const emit = defineEmits(['close'])
+// open：切換到另一個事項（階段 / 所屬任務），由頁面改傳 task
+const emit = defineEmits(['close', 'open'])
 
 const $q = useQuasar()
 const boards = useBoardsStore()
@@ -105,6 +138,7 @@ const saving = ref(false)
 const form = ref({})
 const newItem = ref('')
 const newItemInput = ref(null)
+let snapshot = '' // 開啟時的表單內容，切換事項前用來判斷有沒有未儲存的修改
 
 function addItem () {
   const text = newItem.value.trim()
@@ -130,8 +164,37 @@ watch(() => props.task, t => {
     notify_mode: !t.notification_override ? 'default' : (t.notification_override.enabled ? 'custom' : 'off'),
     lead_times: [...(t.notification_override?.lead_times || [])]
   }
+  snapshot = JSON.stringify(form.value)
   open.value = true
 }, { immediate: true })
+
+/* ---------- 階段 ---------- */
+const newStage = ref('')
+const stageList = ref([]) // draggable 需要可變陣列
+const parent = computed(() => props.task?.parent_id ? tasks.byId(props.task.parent_id) : null)
+const stages = computed(() => props.task ? stageInfo(tasks.tasks, props.task.id) : { stages: [], done: 0, current: null })
+watch(() => stages.value.stages, s => { stageList.value = [...s] }, { immediate: true })
+const columnName = s => boards.byId(s.board_id)?.columns.find(c => c.id === s.column_id)?.name || ''
+
+async function addStage () {
+  const title = newStage.value.trim()
+  if (!title) return
+  await tasks.createStage(props.task, title)
+  newStage.value = ''
+}
+
+function saveStageOrder () {
+  tasks.reorderStages(props.task.id, stageList.value.map(s => s.id))
+}
+
+function openTask (t) {
+  if (JSON.stringify(form.value) === snapshot) return emit('open', t)
+  $q.dialog({
+    title: '尚未儲存',
+    message: '目前的修改尚未儲存，切換後會遺失。確定切換？',
+    cancel: true
+  }).onOk(() => emit('open', t))
+}
 
 const boardOptions = computed(() => boards.boards.map(b => ({ label: b.name, value: b.id })))
 // 換看板時，欄位選項跟著目標看板走
@@ -197,7 +260,7 @@ function notificationOverride () {
 function remove () {
   $q.dialog({
     title: '刪除事項',
-    message: `確定刪除「${props.task.title}」？可於回收桶復原。`,
+    message: `確定刪除「${props.task.title}」${stages.value.stages.length ? `及其 ${stages.value.stages.length} 個階段` : ''}？可於回收桶復原。`,
     cancel: true,
     ok: { label: '刪除', color: 'negative' }
   }).onOk(async () => {

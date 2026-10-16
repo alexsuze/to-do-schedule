@@ -56,6 +56,15 @@
                 <div class="priority-bar" :class="`bg-${priorityColor(t.priority)}`" />
                 <q-card-section class="q-pa-sm">
                   <div class="text-body2">{{ t.title }}</div>
+                  <div v-if="t.parent_id" class="text-caption text-grey-7 ellipsis">↳ {{ store.byId(t.parent_id)?.title }}</div>
+                  <div v-else-if="stage(t).stages.length" class="text-caption text-primary">
+                    <q-icon name="linear_scale" size="xs" />
+                    <template v-if="stage(t).current">
+                      目前：{{ stage(t).current.title }}（{{ stage(t).done }}/{{ stage(t).stages.length }}）
+                      <span v-if="anchorAt(stage(t).current)">· {{ formatDue(anchorAt(stage(t).current)) }}</span>
+                    </template>
+                    <template v-else>階段全部完成（{{ stage(t).done }}/{{ stage(t).stages.length }}）</template>
+                  </div>
                   <div class="row items-center q-gutter-xs q-mt-xs">
                     <span v-if="anchorAt(t)" class="text-caption" :class="dueClass(t)">
                       <q-icon :name="isMeeting(t) ? 'event' : 'schedule'" size="xs" /> {{ formatDue(anchorAt(t)) }}
@@ -100,7 +109,7 @@ import { useQuasar } from 'quasar'
 import draggable from 'vuedraggable'
 import { useBoardsStore } from '../stores/boards'
 import { useTasksStore } from '../stores/tasks'
-import { priorityColor, formatDue, dueState, stateLabel, anchorAt, isMeeting, textOn } from '../utils/task'
+import { priorityColor, formatDue, dueState, stateLabel, anchorAt, isMeeting, textOn, stageInfo, showOnKanban } from '../utils/task'
 import ColorDialog from './ColorDialog.vue'
 
 const props = defineProps({
@@ -126,11 +135,15 @@ function headerStyle (c) {
 }
 
 watch(() => props.board.columns, cols => { columns.value = [...(cols || [])] }, { immediate: true, deep: true })
+// 階段只顯示目前那一個；判斷用未篩選的全部事項
 watch(() => [props.tasks, props.board.columns], () => {
   for (const c of props.board.columns || []) {
-    lists[c.id] = props.tasks.filter(t => t.column_id === c.id).sort((a, b) => a.order - b.order)
+    lists[c.id] = props.tasks.filter(t => t.column_id === c.id && showOnKanban(store.tasks, t))
+      .sort((a, b) => a.order - b.order)
   }
 }, { immediate: true, deep: true })
+
+const stage = t => stageInfo(store.tasks, t.id)
 
 function dueClass (t) {
   return { overdue: 'text-negative text-weight-bold', soon: 'text-warning text-weight-bold', ended: 'text-grey-5' }[dueState(t)] || 'text-grey-7'
@@ -152,9 +165,15 @@ async function submitNew () {
   newTitle.value = ''
 }
 
+// 欄內有隱藏的階段時，畫面位置 ≠ 後端位置：改以「放在哪張可見卡片之前」換算
 function onCardChange (evt, columnId) {
   const e = evt.added || evt.moved
-  if (e) store.move(e.element.id, { columnId, index: e.newIndex })
+  if (!e) return
+  const next = lists[columnId][e.newIndex + 1]
+  const index = next
+    ? store.byColumn(columnId).filter(t => t.id !== e.element.id).findIndex(t => t.id === next.id)
+    : null
+  store.move(e.element.id, { columnId, index })
 }
 
 /* ---------- 欄位 ---------- */

@@ -23,12 +23,12 @@
           <div class="tl-body">
             <div class="tl-today" :style="{ left: LABEL_W + todayX + 'px' }" />
             <div v-for="t in scheduled" :key="t.id" class="tl-row">
-              <div class="tl-label cursor-pointer" :style="labelStyle(t)" @click="$emit('edit', t)">
+              <div class="tl-label cursor-pointer" :class="{ 'tl-stage': t.parent_id }" :style="labelStyle(t)" @click="$emit('edit', t)">
                 <span class="ellipsis">{{ label(t) }}</span>
-                <span v-if="outOfRange(t)" class="text-caption text-grey q-ml-xs">（範圍外）</span>
+                <span v-if="hasDates(t) && outOfRange(t)" class="text-caption text-grey q-ml-xs">（範圍外）</span>
               </div>
               <div class="tl-track" :style="trackStyle">
-                <div class="tl-bar cursor-pointer" :class="barClass(t)" :style="barStyle(t)" @click="$emit('edit', t)">
+                <div v-if="hasDates(t)" class="tl-bar cursor-pointer" :class="barClass(t)" :style="barStyle(t)" @click="$emit('edit', t)">
                   <span class="ellipsis">{{ label(t) }}</span>
                   <q-tooltip anchor="top middle" self="bottom middle" :delay="300" class="bg-grey-9 text-body2" max-width="320px">
                     <div class="text-weight-bold">{{ t.title }}</div>
@@ -65,7 +65,7 @@
 
 <script setup>
 import { computed, nextTick, onMounted, ref } from 'vue'
-import { priorityColor, isoToLocal } from '../utils/task'
+import { priorityColor, isoToLocal, nestStages } from '../utils/task'
 
 const props = defineProps({
   boards: { type: Array, required: true }, // 單一看板頁傳 [board]，總時程表傳全部
@@ -95,11 +95,14 @@ const WEEKDAY = ['日', '一', '二', '三', '四', '五', '六']
 
 // 已完成的事項不顯示
 const active = computed(() => props.tasks.filter(t => !t.completed_at))
-const scheduled = computed(() => active.value.filter(t => t.start_at || t.due_at))
-const unscheduled = computed(() => active.value.filter(t => !t.start_at && !t.due_at))
+const hasDates = t => t.start_at || t.due_at
+// 階段排在所屬任務下方；所屬任務沒日期但有階段有日期時，仍列出作為標題列（不畫長條）
+const scheduled = computed(() => nestStages(active.value)
+  .filter(t => hasDates(t) || active.value.some(s => s.parent_id === t.id && hasDates(s))))
+const unscheduled = computed(() => active.value.filter(t => !scheduled.value.includes(t)))
 const boardOf = t => props.boards.find(b => b.id === t.board_id)
 const columnName = t => boardOf(t)?.columns.find(c => c.id === t.column_id)?.name || ''
-const label = t => props.showBoard ? `(${(boardOf(t)?.name || '').slice(0, 2)})${t.title}` : t.title
+const label = t => t.parent_id ? `↳ ${t.title}` : props.showBoard ? `(${(boardOf(t)?.name || '').slice(0, 2)})${t.title}` : t.title
 
 const rangeStart = computed(() => addDays(today, -(BEFORE + extraBefore.value)))
 const rangeDays = computed(() => BEFORE + extraBefore.value + 1 + AFTER + extraAfter.value)
@@ -188,6 +191,7 @@ onMounted(scrollToToday)
   display: flex; align-items: center; overflow: hidden; white-space: nowrap;
 }
 .tl-header .tl-label { background: #fafafa; }
+.tl-stage { padding-left: 24px; }
 .tl-track {
   position: relative; display: flex; overflow: hidden;
   background-image: linear-gradient(to right, #eee 1px, transparent 1px);

@@ -83,6 +83,31 @@ export function dueBucket (task) {
   return 'later'
 }
 
+// 階段：parent_id 有值的事項。目前階段 = 依 stage_order 第一個未完成的
+export function stageInfo (tasks, parentId) {
+  const stages = tasks.filter(t => t.parent_id === parentId).sort((a, b) => a.stage_order - b.stage_order)
+  return {
+    stages,
+    done: stages.filter(s => s.completed_at).length,
+    current: stages.find(s => !s.completed_at) || null
+  }
+}
+
+// 看板只顯示目前階段；一般事項一律顯示
+export const showOnKanban = (tasks, t) => !t.parent_id || stageInfo(tasks, t.parent_id).current?.id === t.id
+
+// 列表 / 時程表：階段排在所屬任務正下方；所屬任務不在 rows 內的階段維持原位
+export function nestStages (rows) {
+  const ids = new Set(rows.map(r => r.id))
+  const out = []
+  for (const r of rows) {
+    if (r.parent_id && ids.has(r.parent_id)) continue
+    out.push(r)
+    if (!r.parent_id) out.push(...stageInfo(rows, r.id).stages)
+  }
+  return out
+}
+
 export function filterTasks (tasks, f) {
   const q = (f.search || '').trim().toLowerCase()
   return tasks.filter(t =>
