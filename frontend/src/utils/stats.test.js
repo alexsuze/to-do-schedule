@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { periodRange, buckets, byCategory, donutGradient, taskCounts, inRange, totalMinutes } from './stats.js'
+import { periodRange, buckets, byCategory, donutGradient, taskCounts, inRange, totalMinutes, workedDays } from './stats.js'
 
 const local = s => new Date(s)
 const block = (task, s, e) => ({ task_id: task, start_at: local(s).toISOString(), end_at: local(e).toISOString() })
@@ -29,6 +29,8 @@ test('totals and daily buckets', () => {
   const { from, to } = periodRange('week', now)
   const week = inRange(blocks, from, to)
   assert.equal(totalMinutes(week), 180)
+  assert.equal(workedDays(week), 2) // 週一、週三有排；週三兩段只算一天
+  assert.equal(workedDays([]), 0)
   const b = buckets(week, from, to)
   assert.equal(b.perWeek, false)
   assert.deepEqual(b.list.map(x => x.minutes), [90, 0, 90, 0, 0, 0, 0])

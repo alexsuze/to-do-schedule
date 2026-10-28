@@ -35,6 +35,9 @@ export function inRange (blocks, from, to) {
 
 export const totalMinutes = blocks => blocks.reduce((n, b) => n + minutesOf(b), 0)
 
+// 有排工時的天數（平均每天工時用這個除，不含沒排的日子）
+export const workedDays = blocks => new Set(blocks.map(b => new Date(b.start_at).toDateString())).size
+
 const md = d => `${d.getMonth() + 1}/${String(d.getDate()).padStart(2, '0')}`
 
 // 長條圖的每一根：天數不多時每天一根，否則每週一根

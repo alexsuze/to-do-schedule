@@ -25,7 +25,7 @@
       <div class="kpi bg-accent-fun">
         <span class="kpi-label">工時總計</span>
         <span class="kpi-value font-round">{{ hoursNum(total) }}<small>h</small></span>
-        <span class="kpi-note">平均每天 {{ formatHours(total / days) }}</span>
+        <span class="kpi-note">{{ worked ? `有排工時的 ${worked} 天，平均每天 ${formatHours(total / worked)}` : '這段期間還沒排工時' }}</span>
       </div>
       <div class="kpi bg-surface">
         <span class="kpi-label">未完成</span>
@@ -105,7 +105,7 @@ import { useTasksStore } from '../stores/tasks'
 import { useCategoriesStore } from '../stores/categories'
 import { useBlocksStore } from '../stores/blocks'
 import { formatHours, sameDay, weekStart } from '../utils/timeline'
-import { buckets, byCategory, dayCount, donutGradient, inRange, periodRange, taskCounts, toDateInput, totalMinutes } from '../utils/stats'
+import { buckets, byCategory, donutGradient, inRange, periodRange, taskCounts, toDateInput, totalMinutes, workedDays } from '../utils/stats'
 
 const tasks = useTasksStore()
 const categories = useCategoriesStore()
@@ -125,12 +125,12 @@ const range = computed(() => {
   const swapped = c.from && c.to && c.from > c.to ? { from: c.to, to: c.from } : c
   return periodRange(period.value, new Date(), swapped)
 })
-const days = computed(() => dayCount(range.value.from, range.value.to))
 const md = d => `${d.getMonth() + 1}/${String(d.getDate()).padStart(2, '0')}`
 const rangeLabel = computed(() => `${md(range.value.from)} – ${md(new Date(range.value.to - 1))}`)
 
 const periodBlocks = computed(() => inRange(blocks.list, range.value.from, range.value.to))
 const total = computed(() => totalMinutes(periodBlocks.value))
+const worked = computed(() => workedDays(periodBlocks.value)) // 平均只除以有排工時的天數
 const counts = computed(() => taskCounts(tasks.tasks, range.value.from, range.value.to))
 const cats = computed(() => byCategory(periodBlocks.value, tasks.tasks, categories.list))
 
