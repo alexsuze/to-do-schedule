@@ -38,6 +38,15 @@ cd backend && ./mvnw -q -DskipTests package     # 驗證可打包
 ```
 本機沒有 MongoDB，後端 `/actuator/health` 會 DOWN 屬正常；`/actuator/health/liveness` 與 `/api/ping` 可用。
 
+## 安全（GitHub 倉庫為公開，2026-10-28 起）
+- **任何提交都會被公開看到**：密碼、API 金鑰、資料庫連線字串、Resend 金鑰、`JWT_SECRET` 一律只放環境變數（Railway Variables、GitHub Secrets），不可寫進程式、文件、測試或範例檔；`.env.example` 只能放假值。
+- 本機 `.env`、`.env.local`、`.claude/` 已被 `.gitignore` 排除，不可提交。
+- 每次 commit 前用 `git diff --cached --name-only` 確認只包含本次要提交的檔案（曾因先前已 `git rm` 的檔案被一起帶進無關 commit 而需還原）。
+- 可公開的資訊：Google 用戶端 ID、Railway 伺服器網址、GitHub Pages 網址（本來就在前端程式中）；`alex801221@gmail.com` 公開於隱私權頁與 commit 作者資訊（使用者已知悉）。
+- 安全靠後端把關：Google 登入＋管理員核准＋資料依 `user_id` 隔離；前端程式可被任何人看到，不可在前端放任何機密或只靠前端擋權限。
+- 部署 workflow 只在 push `main` 或手動觸發時執行，fork 的 PR 拿不到 Secrets；新增 workflow 時不要用 `pull_request_target` 搭配 Secrets。
+- 機密掃描指令與上次結果見 `Doc/開發進度.md`「機密掃描與公開倉庫」。
+
 ## 慣例
 - 所有後端 API 路徑以 `/api/` 開頭，回傳 JSON（欄位 snake_case）；前端一律透過 `frontend/src/services/api.js` 呼叫（已自動帶通行證，401 自動回登入頁）。
 - 資料隔離：所有使用者資料都有 `user_id`，controller 以 `@RequestAttribute(AuthFilter.USER) User` 取得目前使用者並傳給 service；別人的資料一律回「找不到」。
