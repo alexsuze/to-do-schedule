@@ -40,8 +40,9 @@
           <div class="cols">
             <span />
             <div v-for="(d, i) in days" :key="i" class="day-head">
-              <span class="wd" :class="{ today: isToday(d), weekend: i >= 5 }">{{ WD[i] }}</span>
+              <span class="wd" :class="{ today: isToday(d), weekend: (i >= 5 && special[i]?.off !== false) || special[i]?.off }">{{ WD[i] }}</span>
               <span class="font-round text-sub" style="font-size: 13px">{{ d.getMonth() + 1 }}/{{ String(d.getDate()).padStart(2, '0') }}</span>
+              <span v-if="special[i]" class="day-tag" :class="special[i].off ? 'off' : 'work'" :title="special[i].name">{{ special[i].name }}</span>
             </div>
           </div>
 
@@ -56,7 +57,7 @@
             </div>
             <div
               v-for="(d, i) in days" :key="i"
-              class="day-col" :class="{ today: isToday(d) }" :data-day="i"
+              class="day-col" :class="{ today: isToday(d), holiday: special[i]?.off }" :data-day="i"
               :style="{ height: `${rows * ROW}px` }"
             >
               <div
@@ -96,7 +97,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import { useTasksStore } from '../stores/tasks'
 import { useCategoriesStore } from '../stores/categories'
@@ -106,6 +107,7 @@ import {
   DEFAULT_RANGE, EXPAND_HOURS, SLOTS_PER_DAY, addDays, blockSlots, formatHours, formatSlot,
   minutesOf, overlaps, sameDay, slotOf, slotTime, visibleRange, weekStart
 } from '../utils/timeline'
+import { dateKey, loadYear } from '../utils/holidays'
 import TaskDialog from '../components/TaskDialog.vue'
 
 const ROW = 28 // 一格 30 分鐘的高度（px）
@@ -127,6 +129,15 @@ const weekLabel = computed(() => {
   return `${f(days.value[0])} – ${f(days.value[6])}`
 })
 const shiftWeek = n => { ws.value = addDays(ws.value, n) }
+
+/* 國定假日 / 補班：本週可能跨年，兩年都讀 */
+const holidayMaps = ref({})
+watch(days, async ds => {
+  for (const y of new Set(ds.map(d => d.getFullYear()))) {
+    if (!holidayMaps.value[y]) holidayMaps.value = { ...holidayMaps.value, [y]: await loadYear(y) }
+  }
+}, { immediate: true })
+const special = computed(() => days.value.map(d => holidayMaps.value[d.getFullYear()]?.[dateKey(d)] || null))
 
 const now = ref(new Date())
 let timer
@@ -434,7 +445,15 @@ onUnmounted(() => {
     linear-gradient(to bottom, transparent 27px, var(--soft) 27px, var(--soft) 28px, transparent 28px);
   background-size: 100% 56px;
 }
+.day-col.holiday { background-color: rgba(255, 143, 143, .13); }
 .day-col.today { background-color: rgba(255, 217, 102, .18); }
+.day-tag {
+  max-width: 100%; box-sizing: border-box; padding: 1px 8px; border-radius: 999px;
+  border: 2px solid var(--line); font-size: 11px; font-weight: 700; color: var(--on-color);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.day-tag.off { background: var(--danger); }
+.day-tag.work { background: var(--butter); }
 
 .block {
   position: absolute; left: 4px; right: 4px; box-sizing: border-box;
