@@ -1,10 +1,10 @@
 # CLAUDE.md — to-do-schedule
 
-單一使用者的工作事項管理系統。2026-10-28 打掉重練，功能重新設計中（舊版最後一版為 git commit a586657）。
+單一使用者的工作事項管理系統：任務卡 + 週時程表工時紀錄 + 統計 + Email 每日摘要。2026-10-28 打掉重練（舊版最後一版為 git commit a586657）。
 使用者以**繁體中文**溝通；對技術術語不熟，說明時用白話並提供 A/B 選項。
 
 ## 必讀文件
-- 需求書：重新設計中，尚未撰寫。確定後放 `Doc/`，任何功能實作以此為準。
+- `Doc/工作事項管理系統-需求書.md`：新版需求（v1.0 草稿，任務 + 工時紀錄）。任何功能實作以此為準。
 - `Doc/開發進度.md`：目前進度、已完成項目、下一步待辦。**每次完成一個階段都要更新此檔。**
 - `Doc/MongoDB資料結構.md`：所有 collection 的欄位、型別、用途與索引。**新增或修改欄位時同步更新。**
 - `README.md`：本機啟動與部署步驟。
@@ -31,6 +31,7 @@ backend/    src/main/java/com/todoschedule/{config,controller,model,repository,s
 # 前端
 cd frontend && npm install && npm run dev      # http://localhost:5173
 cd frontend && npm run build                    # 驗證可建置
+cd frontend && npm test                         # utils 純函式測試（Node 內建）
 # 後端（本機無 mvn，用 wrapper；本機 Java 26 可執行，目標版本 21）
 cd backend && ./mvnw spring-boot:run            # Windows: mvnw.cmd
 cd backend && ./mvnw -q -DskipTests package     # 驗證可打包

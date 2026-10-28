@@ -1,0 +1,146 @@
+<template>
+  <!-- 新增 / 編輯任務；task 為 null 時是新增 -->
+  <q-dialog :model-value="modelValue" @update:model-value="v => emit('update:modelValue', v)" @before-show="reset">
+    <q-card style="width: 560px; max-width: 95vw" class="q-pa-md">
+      <q-card-section class="row items-center no-wrap q-pb-sm">
+        <div class="font-round text-weight-bold" style="font-size: 26px">{{ task ? '編輯任務' : '新增任務' }}</div>
+        <q-space />
+        <q-btn flat round icon="close" aria-label="關閉" v-close-popup />
+      </q-card-section>
+
+      <q-card-section class="column q-gutter-y-md">
+        <q-input v-model="form.title" label="標題" outlined autofocus maxlength="100" />
+        <q-input v-model="form.description" label="描述" outlined type="textarea" autogrow />
+        <div class="row q-col-gutter-md">
+          <div class="col-12 col-sm-6">
+            <q-select v-model="form.category_id" :options="catOptions" label="分類" outlined emit-value map-options>
+              <template #option="{ itemProps, opt }">
+                <q-item v-bind="itemProps">
+                  <q-item-section avatar><span class="cat-dot" :style="{ background: opt.color }" /></q-item-section>
+                  <q-item-section>{{ opt.label }}</q-item-section>
+                </q-item>
+              </template>
+              <template #selected-item="{ opt }">
+                <span class="cat-chip" :style="{ background: opt.color }">{{ opt.label }}</span>
+              </template>
+            </q-select>
+          </div>
+          <div class="col-12 col-sm-6">
+            <DateTimeField v-model="form.deadline" label="死線" default-time="18:00" />
+          </div>
+        </div>
+
+        <div class="subtasks column q-gutter-y-sm">
+          <div class="row justify-between items-center">
+            <span class="text-weight-bold" style="font-size: 16px">子任務</span>
+            <span class="font-round text-weight-bold">{{ doneCount }} / {{ form.subtasks.length }}</span>
+          </div>
+          <draggable :list="form.subtasks" item-key="id" handle=".drag-handle" class="column q-gutter-y-sm">
+            <template #item="{ element: s, index }">
+              <div class="sub-row row items-center no-wrap">
+                <q-icon name="drag_indicator" class="drag-handle q-px-xs" size="20px" aria-label="拖曳排序" />
+                <q-checkbox v-model="s.done" color="primary" dense />
+                <q-input v-model="s.name" dense borderless class="col q-ml-sm" :input-class="s.done ? 'sub-done' : ''" aria-label="子任務名稱" />
+                <q-btn flat round dense icon="close" size="sm" aria-label="刪除子任務" @click="form.subtasks.splice(index, 1)" />
+              </div>
+            </template>
+          </draggable>
+          <q-input v-model="newSub" dense outlined placeholder="新增子任務，按 Enter 加入" @keydown.enter.prevent="addSub">
+            <template #prepend><q-icon name="add" /></template>
+          </q-input>
+        </div>
+      </q-card-section>
+
+      <q-card-actions class="q-px-md q-pt-md row q-gutter-sm">
+        <q-btn v-if="task" no-caps unelevated class="fun-btn flat-fun bg-surface" icon="delete_outline" label="移到回收桶" @click="remove" />
+        <q-space />
+        <q-btn v-if="task" no-caps unelevated class="fun-btn flat-fun bg-mint" :label="form.done ? '改回未完成' : '標記完成'" :loading="saving" @click="save(!form.done)" />
+        <q-btn no-caps unelevated class="fun-btn bg-accent-fun" label="儲存" :loading="saving" @click="save(form.done)" />
+      </q-card-actions>
+    </q-card>
+  </q-dialog>
+</template>
+
+<script setup>
+import { computed, ref } from 'vue'
+import { useQuasar } from 'quasar'
+import draggable from 'vuedraggable'
+import DateTimeField from './DateTimeField.vue'
+import { useTasksStore } from '../stores/tasks'
+import { useCategoriesStore } from '../stores/categories'
+import { isoToLocal, localToIso, UNCATEGORIZED_COLOR } from '../utils/task'
+
+const props = defineProps({
+  modelValue: Boolean,
+  task: { type: Object, default: null }
+})
+const emit = defineEmits(['update:modelValue'])
+
+const $q = useQuasar()
+const tasks = useTasksStore()
+const cats = useCategoriesStore()
+
+const form = ref({ subtasks: [] })
+const newSub = ref('')
+const saving = ref(false)
+
+const catOptions = computed(() => [
+  { label: '未分類', value: null, color: UNCATEGORIZED_COLOR },
+  ...cats.list.map(c => ({ label: c.name, value: c.id, color: c.color }))
+])
+const doneCount = computed(() => form.value.subtasks.filter(s => s.done).length)
+
+// 每次打開都從原任務複製一份，取消就不影響原資料
+function reset () {
+  const t = props.task
+  form.value = {
+    title: t?.title || '',
+    description: t?.description || '',
+    category_id: t?.category_id || null,
+    deadline: isoToLocal(t?.deadline),
+    subtasks: (t?.subtasks || []).map(s => ({ ...s })),
+    done: !!t?.done
+  }
+  newSub.value = ''
+}
+
+function addSub () {
+  const name = newSub.value.trim()
+  if (!name) return
+  form.value.subtasks.push({ id: crypto.randomUUID(), name, done: false })
+  newSub.value = ''
+}
+
+async function save (done) {
+  if (!form.value.title.trim()) {
+    $q.notify({ type: 'warning', message: '請輸入標題' })
+    return
+  }
+  addSub() // 還沒按 Enter 的子任務也一起存
+  saving.value = true
+  try {
+    await tasks.save({ ...form.value, id: props.task?.id, deadline: localToIso(form.value.deadline), done })
+    emit('update:modelValue', false)
+  } finally {
+    saving.value = false
+  }
+}
+
+function remove () {
+  $q.dialog({
+    title: '移到回收桶',
+    message: `確定要把「${props.task.title}」移到回收桶嗎？30 天內可以還原。`,
+    cancel: { label: '取消', flat: true, noCaps: true },
+    ok: { label: '移到回收桶', noCaps: true, unelevated: true }
+  }).onOk(async () => {
+    await tasks.remove(props.task.id)
+    emit('update:modelValue', false)
+  })
+}
+</script>
+
+<style scoped>
+.subtasks { padding: 14px; border-radius: 18px; border: 2px dashed var(--line); background: var(--soft); }
+.sub-row { min-height: 48px; padding: 0 6px; border-radius: 14px; border: 2px solid var(--line); background: var(--surface); }
+:deep(.sub-done) { text-decoration: line-through; color: var(--sub); }
+</style>

@@ -1,0 +1,111 @@
+/* 童趣風格：奶油底、粗框、錯位陰影。深色模式由 Quasar 在 body 加 body--dark */
+:root {
+  --bg: #FFF6E9;
+  --side: #FFEBCF;
+  --surface: #FFFFFF;
+  --soft: #FFF1DC;
+  --ink: #2A2633;
+  --sub: #5F5869;
+  --line: #2A2633;
+  --edge: #2A2633;
+  --grid: #F0E4D2;
+  --accent: #FF8A4C;
+  --mint: #8EE3B8;
+  --butter: #FFD966;
+  --danger: #FF8F8F;
+  --on-color: #2A2633; /* 粉嫩底色上的文字，深淺模式都用深色 */
+}
+
+body.body--dark {
+  --bg: #1D1A2B;
+  --side: #24203A;
+  --surface: #2C2843;
+  --soft: #3A3456;
+  --ink: #F7F1E8;
+  --sub: #C9C1DA;
+  --line: #7A70A3;
+  --edge: #0B0914;
+  --grid: #3A3456;
+  /* Quasar 深色元件（對話框、選單、輸入框）的底色 */
+  --q-dark: #2C2843;
+  --q-dark-page: #1D1A2B;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Huninn', 'Zen Maru Gothic', 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+}
+
+.font-round { font-family: 'Fredoka', 'Huninn', sans-serif; }
+.text-sub { color: var(--sub); }
+.text-on-color { color: var(--on-color) !important; }
+
+.page-title {
+  margin: 0;
+  font-family: 'Fredoka', 'Huninn', sans-serif;
+  font-size: 38px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.fun-card {
+  background: var(--surface);
+  border: 2px solid var(--line);
+  border-radius: 20px;
+  box-shadow: 5px 5px 0 var(--edge);
+}
+
+/* 套在 q-btn 上：粗框 + 錯位陰影 */
+.fun-btn.q-btn {
+  border: 2px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 3px 3px 0 var(--edge);
+  font-weight: 700;
+  min-height: 44px;
+}
+.fun-btn.q-btn:active { box-shadow: 1px 1px 0 var(--edge); transform: translate(2px, 2px); }
+.fun-btn.q-btn.flat-fun { box-shadow: none; }
+
+.bg-accent-fun { background: var(--accent) !important; color: var(--on-color) !important; }
+.bg-mint { background: var(--mint) !important; color: var(--on-color) !important; }
+.bg-butter { background: var(--butter) !important; color: var(--on-color) !important; }
+.bg-danger { background: var(--danger) !important; color: var(--on-color) !important; }
+.bg-soft { background: var(--soft) !important; }
+.bg-surface { background: var(--surface) !important; color: var(--ink) !important; }
+
+/* 分段切換（未完成 / 已完成 / 全部等） */
+.fun-toggle {
+  border: 2px solid var(--line);
+  border-radius: 999px;
+  padding: 3px;
+  background: var(--surface);
+}
+.fun-toggle .q-btn { border-radius: 999px; min-height: 38px; }
+
+.cat-chip {
+  display: inline-block;
+  padding: 2px 12px;
+  border-radius: 999px;
+  border: 2px solid #2A2633;
+  color: var(--on-color);
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.cat-dot {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid #2A2633;
+  flex-shrink: 0;
+}
+
+.drag-handle { cursor: grab; color: var(--sub); }
+
+/* Quasar 輸入框外框跟著主題線條色 */
+.q-field--outlined .q-field__control { border-radius: 14px; }
+.q-field--outlined .q-field__control:before { border: 2px solid var(--line); }
+.q-dialog .q-card { border: 2px solid var(--line); border-radius: 26px; box-shadow: 6px 6px 0 var(--edge); }
