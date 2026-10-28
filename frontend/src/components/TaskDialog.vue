@@ -49,6 +49,12 @@
             <template #prepend><q-icon name="add" /></template>
           </q-input>
         </div>
+
+        <div v-if="task" class="row items-center text-sub" style="gap: 6px">
+          <q-icon name="timer" size="18px" />累計工時
+          <strong class="font-round" style="color: var(--ink)">{{ formatHours(blocks.minutesByTask[task.id] || 0) }}</strong>
+          （時程表上 {{ blocks.countOf(task.id) }} 個時段）
+        </div>
       </div>
 
       <div class="dialog-actions">
@@ -68,7 +74,9 @@ import draggable from 'vuedraggable'
 import DateTimeField from './DateTimeField.vue'
 import { useTasksStore } from '../stores/tasks'
 import { useCategoriesStore } from '../stores/categories'
+import { useBlocksStore } from '../stores/blocks'
 import { isoToLocal, localToIso, UNCATEGORIZED_COLOR } from '../utils/task'
+import { formatHours } from '../utils/timeline'
 
 const props = defineProps({
   modelValue: Boolean,
@@ -79,6 +87,7 @@ const emit = defineEmits(['update:modelValue'])
 const $q = useQuasar()
 const tasks = useTasksStore()
 const cats = useCategoriesStore()
+const blocks = useBlocksStore()
 
 const form = ref({ subtasks: [] })
 const newSub = ref('')

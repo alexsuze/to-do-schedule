@@ -53,6 +53,10 @@
           </div>
           <div class="bar"><div :style="{ width: pct(t) }" /></div>
         </div>
+        <div class="hours text-sub">
+          <q-icon name="timer" size="16px" />累計工時
+          <strong class="font-round">{{ formatHours(blocks.minutesByTask[t.id] || 0) }}</strong>
+        </div>
       </article>
     </div>
 
@@ -64,11 +68,14 @@
 import { computed, onMounted, ref } from 'vue'
 import { useTasksStore } from '../stores/tasks'
 import { useCategoriesStore } from '../stores/categories'
+import { useBlocksStore } from '../stores/blocks'
 import { deadlineState, deadlineLabel, sortTasks, subtaskProgress } from '../utils/task'
+import { formatHours } from '../utils/timeline'
 import TaskDialog from '../components/TaskDialog.vue'
 
 const tasks = useTasksStore()
 const cats = useCategoriesStore()
+const blocks = useBlocksStore()
 
 const FILTERS = [
   { label: '未完成', value: 'open' },
@@ -94,7 +101,7 @@ function open (t) {
   dialog.value = true
 }
 
-onMounted(() => Promise.all([tasks.load(), cats.load()]))
+onMounted(() => Promise.all([tasks.load(), cats.load(), blocks.load()]))
 </script>
 
 <style scoped>
@@ -124,4 +131,6 @@ onMounted(() => Promise.all([tasks.load(), cats.load()]))
 .deadline.overdue { background: var(--danger); color: var(--on-color); font-weight: 700; }
 .bar { height: 12px; border-radius: 999px; border: 2px solid var(--line); background: var(--soft); overflow: hidden; }
 .bar > div { height: 100%; background: var(--mint); }
+.hours { display: flex; align-items: center; gap: 6px; padding-top: 8px; border-top: 2px dashed var(--grid); font-size: 14px; }
+.hours strong { color: var(--ink); }
 </style>

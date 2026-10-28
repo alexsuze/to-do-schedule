@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import api from '../services/api'
+import { useBlocksStore } from './blocks'
 
 // 後端 TaskRequest 的欄位（編輯為完整覆寫）
 const toRequest = t => ({
@@ -36,16 +37,22 @@ export const useTasksStore = defineStore('tasks', {
     async remove (id) {
       await api.delete(`/tasks/${id}`)
       this.tasks = this.tasks.filter(t => t.id !== id)
+      // 進回收桶的任務，時段暫時從時程表消失
+      const blocks = useBlocksStore()
+      blocks.list = blocks.list.filter(b => b.task_id !== id)
     },
 
     /* 回收桶 */
     async loadTrash () {
       this.trash = (await api.get('/trash')).data
     },
+    // 回傳因時間被佔用而沒還原的時段數
     async restore (id) {
       const { data } = await api.post(`/trash/${id}/restore`)
       this.trash = this.trash.filter(t => t.id !== id)
-      this.tasks.push(data)
+      this.tasks.push(data.task)
+      await useBlocksStore().load()
+      return data.dropped_blocks
     },
     async purge (id) {
       await api.delete(`/trash/${id}`)

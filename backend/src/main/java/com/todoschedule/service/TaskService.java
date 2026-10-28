@@ -24,15 +24,20 @@ public class TaskService {
 
     private final TaskRepository repo;
     private final CategoryService categories;
+    private final TimeBlockService blocks;
 
-    public TaskService(TaskRepository repo, CategoryService categories) {
+    public TaskService(TaskRepository repo, CategoryService categories, TimeBlockService blocks) {
         this.repo = repo;
         this.categories = categories;
+        this.blocks = blocks;
     }
 
     /** 新增與編輯共用，編輯為完整覆寫。 */
     public record TaskRequest(String title, String description, String categoryId, Instant deadline,
                               List<Subtask> subtasks, Boolean done) {}
+
+    /** droppedBlocks：刪除期間被其他任務佔用、因此沒還原的時段數。 */
+    public record RestoreResult(Task task, int droppedBlocks) {}
 
     public List<Task> list() {
         return repo.findByDeletedAtIsNull();
@@ -64,25 +69,31 @@ public class TaskService {
         return repo.findByDeletedAtIsNotNullOrderByDeletedAtDesc();
     }
 
-    // TODO 階段 2：還原時一併還原時段，被佔用的時段不還原並回報
-    public Task restore(String id) {
+    /** 時段隨任務一起回到時程表，被佔用的不還原。 */
+    public RestoreResult restore(String id) {
         Task t = trashed(id);
         t.deletedAt = null;
-        return repo.save(t);
+        repo.save(t);
+        return new RestoreResult(t, blocks.dropConflicts(t.id));
     }
 
-    // TODO 階段 2：一併刪除時段
     public void purge(String id) {
-        repo.delete(trashed(id));
+        purgeTasks(List.of(trashed(id)));
     }
 
     public void purgeAll() {
-        repo.deleteAll(trash());
+        purgeTasks(trash());
     }
 
     @Scheduled(cron = "0 0 3 * * *", zone = "Asia/Taipei")
     public void purgeExpired() {
-        repo.deleteAll(repo.findByDeletedAtBefore(Instant.now().minus(TRASH_KEEP)));
+        purgeTasks(repo.findByDeletedAtBefore(Instant.now().minus(TRASH_KEEP)));
+    }
+
+    /** 永久刪除任務與它的時段。 */
+    private void purgeTasks(List<Task> tasks) {
+        blocks.deleteForTasks(tasks.stream().map(t -> t.id).toList());
+        repo.deleteAll(tasks);
     }
 
     private Task get(String id) {

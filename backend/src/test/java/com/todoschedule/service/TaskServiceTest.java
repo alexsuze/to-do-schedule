@@ -24,7 +24,8 @@ class TaskServiceTest {
 
     private final TaskRepository repo = mock(TaskRepository.class);
     private final CategoryService categories = mock(CategoryService.class);
-    private final TaskService service = new TaskService(repo, categories);
+    private final TimeBlockService blocks = mock(TimeBlockService.class);
+    private final TaskService service = new TaskService(repo, categories, blocks);
     private final List<Task> tasks = new ArrayList<>();
 
     TaskServiceTest() {

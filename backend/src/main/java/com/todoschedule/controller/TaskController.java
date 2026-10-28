@@ -53,7 +53,7 @@ public class TaskController {
     }
 
     @PostMapping("/trash/{id}/restore")
-    public Task restore(@PathVariable String id) {
+    public TaskService.RestoreResult restore(@PathVariable String id) {
         return service.restore(id);
     }
 

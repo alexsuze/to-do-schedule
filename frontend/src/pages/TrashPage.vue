@@ -60,8 +60,12 @@ function confirm (title, message, ok) {
 }
 
 async function restore (t) {
-  await tasks.restore(t.id)
-  $q.notify({ type: 'positive', message: `已還原「${t.title}」` })
+  const dropped = await tasks.restore(t.id)
+  if (dropped) {
+    $q.notify({ type: 'warning', message: `已還原「${t.title}」，但有 ${dropped} 個時段在刪除期間被其他任務佔用，沒有還原`, timeout: 6000 })
+  } else {
+    $q.notify({ type: 'positive', message: `已還原「${t.title}」` })
+  }
 }
 
 function purge (t) {
