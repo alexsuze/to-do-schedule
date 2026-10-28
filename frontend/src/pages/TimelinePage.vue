@@ -40,7 +40,7 @@
           <div class="cols">
             <span />
             <div v-for="(d, i) in days" :key="i" class="day-head">
-              <span class="wd" :class="{ today: isToday(d), weekend: (i >= 5 && special[i]?.off !== false) || special[i]?.off }">{{ WD[i] }}</span>
+              <span class="wd" :class="{ today: isToday(d), weekend: isOff(i) }">{{ WD[i] }}</span>
               <span class="font-round text-sub" style="font-size: 13px">{{ d.getMonth() + 1 }}/{{ String(d.getDate()).padStart(2, '0') }}</span>
               <span v-if="special[i]" class="day-tag" :class="special[i].off ? 'off' : 'work'" :title="special[i].name">{{ special[i].name }}</span>
             </div>
@@ -57,7 +57,7 @@
             </div>
             <div
               v-for="(d, i) in days" :key="i"
-              class="day-col" :class="{ today: isToday(d), holiday: special[i]?.off }" :data-day="i"
+              class="day-col" :class="{ today: isToday(d), holiday: isOff(i) }" :data-day="i"
               :style="{ height: `${rows * ROW}px` }"
             >
               <div
@@ -138,6 +138,8 @@ watch(days, async ds => {
   }
 }, { immediate: true })
 const special = computed(() => days.value.map(d => holidayMaps.value[d.getFullYear()]?.[dateKey(d)] || null))
+// 休息日：國定假日、補假，或週末（補班除外）
+const isOff = i => special.value[i] ? special.value[i].off : i >= 5
 
 const now = ref(new Date())
 let timer
