@@ -3,7 +3,7 @@
     <div class="row items-end justify-between q-mb-lg" style="gap: 16px">
       <div>
         <h1 class="page-title">時程表</h1>
-        <p class="text-sub q-ma-none" style="font-size: 15px">把左邊的任務拖進格子，拉下緣調整工時</p>
+        <p class="text-sub q-ma-none" style="font-size: 15px">把左邊的任務拖進格子，拉下緣調整工時，拖到下方垃圾桶移除</p>
       </div>
       <div class="row items-center" style="gap: 10px">
         <span class="week-total">本週已排 <span class="font-round">{{ formatHours(weekMinutes) }}</span></span>
@@ -70,7 +70,6 @@
               >
                 <span class="block-title">{{ taskOf(b)?.title }}</span>
                 <span v-if="lenOf(b) >= 2" class="font-round" style="font-size: 12px; opacity: .85">{{ blockRange(b) }}</span>
-                <q-btn round flat dense size="xs" icon="close" class="block-del" aria-label="移除時段" @pointerdown.stop @click.stop="removeBlock(b)" />
                 <div class="resize" aria-hidden="true" @pointerdown.stop.prevent="startResize($event, b)" @click.stop />
               </div>
               <div v-if="ghost && ghost.day === i" class="ghost" :class="{ bad: ghost.bad }" :style="{ top: `${(ghost.slot - view.start * 2) * ROW + 1}px`, height: `${ghost.len * ROW - 3}px` }" />
@@ -85,6 +84,12 @@
 
     <!-- 拖曳中跟著手指 / 滑鼠的小卡 -->
     <div v-if="drag" class="float-chip" :style="{ left: `${drag.x + 14}px`, top: `${drag.y + 14}px` }">{{ drag.title }}</div>
+
+    <!-- 拖曳既有時段時才出現，放進來就移除 -->
+    <div v-if="drag?.block" class="trash-zone" :class="{ over: overTrash }">
+      <q-icon name="delete_outline" size="26px" />
+      {{ overTrash ? '放開就移除時段' : '拖到這裡移除時段' }}
+    </div>
 
     <TaskDialog v-model="dialog" :task="editing" />
   </q-page>
@@ -193,6 +198,7 @@ const EDGE_PX = 48 // 拖到離畫面邊緣多近開始自動捲動
 const gridBox = ref(null)
 const drag = ref(null) // 拖曳中：{ taskId, title, block?, len, grab, x, y }
 const ghost = ref(null) // 放下位置預覽：{ day, slot, len, start, end, bad }
+const overTrash = ref(false) // 拖曳既有時段到垃圾桶區上方
 let pending = null // 按下但還沒開始拖
 let pressTimer = null
 let scrollTimer = null
@@ -227,12 +233,19 @@ function onPointerMove (e) {
   }
   drag.value.x = e.clientX
   drag.value.y = e.clientY
-  ghost.value = targetAt(e.clientX, e.clientY)
+  updateTarget()
 }
 
-// 手指 / 滑鼠下方是哪一天的哪一格
-function targetAt (x, y) {
-  const col = document.elementFromPoint(x, y)?.closest('.day-col')
+// 手指 / 滑鼠下方是垃圾桶區，還是哪一天的哪一格
+function updateTarget () {
+  const { x, y, block } = drag.value
+  const el = document.elementFromPoint(x, y)
+  overTrash.value = !!block && !!el?.closest('.trash-zone')
+  ghost.value = overTrash.value ? null : targetAt(el, x, y)
+}
+
+function targetAt (el, x, y) {
+  const col = el?.closest('.day-col')
   if (!col) return null
   const day = Number(col.dataset.day)
   const { len, grab, block } = drag.value
@@ -247,6 +260,7 @@ function targetAt (x, y) {
 function autoScroll () {
   const d = drag.value
   if (!d) return
+  if (overTrash.value) return // 停在垃圾桶上時不要捲走
   if (d.y < EDGE_PX) window.scrollBy(0, -10)
   else if (d.y > window.innerHeight - EDGE_PX) window.scrollBy(0, 10)
   const box = gridBox.value?.getBoundingClientRect()
@@ -254,17 +268,19 @@ function autoScroll () {
     if (d.x < box.left + EDGE_PX) gridBox.value.scrollLeft -= 10
     else if (d.x > box.right - EDGE_PX) gridBox.value.scrollLeft += 10
   }
-  ghost.value = targetAt(d.x, d.y)
+  updateTarget()
 }
 
 async function onPointerUp () {
   const g = ghost.value
   const d = drag.value
+  const trash = overTrash.value
   endDrag()
   if (!d) return
   // 放開後瀏覽器還會送出 click，別讓它打開編輯視窗
   suppressClick = true
   setTimeout(() => { suppressClick = false })
+  if (trash && d.block) return removeBlock(d.block)
   if (!g) return
   if (g.bad) {
     $q.notify({ type: 'warning', message: '這段時間已經排了其他任務' })
@@ -287,6 +303,7 @@ function endDrag () {
   pending = null
   drag.value = null
   ghost.value = null
+  overTrash.value = false
 }
 
 /* 拉下緣調整工時 */
@@ -320,9 +337,20 @@ async function onResizeEnd () {
   }
 }
 
+// 拖到垃圾桶移除；提示附「復原」，原時間重新建一筆
 async function removeBlock (b) {
   await blocks.remove(b.id)
-  $q.notify({ type: 'positive', message: '已移除時段' })
+  $q.notify({
+    type: 'positive',
+    message: `已移除「${taskOf(b)?.title || '時段'}」的時段`,
+    timeout: 5000,
+    actions: [{
+      label: '復原',
+      color: 'white',
+      noCaps: true,
+      handler: () => blocks.create(b.task_id, new Date(b.start_at), new Date(b.end_at))
+    }]
+  })
 }
 
 /* 點時段開任務 */
@@ -377,6 +405,15 @@ onUnmounted(() => {
   background: var(--accent); color: var(--on-color); font-size: 14px; font-weight: 700;
   box-shadow: 3px 3px 0 var(--edge); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+.trash-zone {
+  position: fixed; z-index: 8000; left: 50%; bottom: 24px; transform: translateX(-50%);
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  width: min(360px, calc(100vw - 32px)); height: 72px; box-sizing: border-box;
+  border-radius: 20px; border: 3px dashed var(--line); background: var(--surface); color: var(--ink);
+  box-shadow: 4px 4px 0 var(--edge); font-size: 16px; font-weight: 700;
+  transition: background .12s, transform .12s;
+}
+.trash-zone.over { background: var(--danger); color: var(--on-color); border-style: solid; transform: translateX(-50%) scale(1.06); }
 
 .grid-box { flex: 999 1 600px; min-width: 0; overflow-x: auto; padding: 12px 12px 14px; }
 .grid-inner { min-width: 660px; display: flex; flex-direction: column; gap: 8px; }
@@ -401,7 +438,7 @@ onUnmounted(() => {
 
 .block {
   position: absolute; left: 4px; right: 4px; box-sizing: border-box;
-  padding: 3px 22px 8px 8px; border-radius: 12px; overflow: hidden;
+  padding: 3px 8px 8px; border-radius: 12px; overflow: hidden;
   display: flex; flex-direction: column; gap: 1px;
   border: 2px solid #2A2633; box-shadow: 3px 3px 0 var(--edge);
   color: var(--on-color); cursor: grab; z-index: 1;
@@ -411,16 +448,13 @@ onUnmounted(() => {
 .block.done { opacity: .5; }
 .block.done .block-title { text-decoration: line-through; }
 .block-title { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.block-del { position: absolute; top: 1px; right: 1px; color: var(--on-color); opacity: 0; }
-.block:hover .block-del, .block-del:focus { opacity: 1; }
 .resize { position: absolute; left: 0; right: 0; bottom: 0; height: 10px; cursor: ns-resize; touch-action: none; }
 .resize::after {
   content: ''; position: absolute; left: 50%; bottom: 3px; width: 26px; height: 4px; margin-left: -13px;
   border-radius: 4px; background: #2A2633; opacity: .45;
 }
-/* 觸控裝置沒有 hover：移除鈕常駐、拉把加大 */
+/* 觸控裝置：拉把加大，方便手指操作 */
 @media (hover: none) {
-  .block-del { opacity: 1; }
   .resize { height: 18px; }
 }
 .ghost {
