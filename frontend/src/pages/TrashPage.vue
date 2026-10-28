@@ -1,6 +1,6 @@
 <template>
   <q-page class="page">
-    <div class="row items-end justify-between q-col-gutter-md q-mb-lg">
+    <div class="row items-end justify-between q-mb-lg" style="gap: 16px">
       <div>
         <h1 class="page-title">回收桶</h1>
         <p class="text-sub q-ma-none" style="font-size: 15px">刪掉的任務會在這裡待 {{ TRASH_KEEP_DAYS }} 天，之後自動永久刪除</p>
@@ -28,7 +28,7 @@
             <td class="text-sub nowrap">{{ formatDateTime(t.deleted_at) }}</td>
             <td><span class="left" :class="{ urgent: trashDaysLeft(t.deleted_at) <= 5 }">剩 {{ trashDaysLeft(t.deleted_at) }} 天</span></td>
             <td>
-              <div class="row justify-end no-wrap q-gutter-sm">
+              <div class="row justify-end no-wrap" style="gap: 8px">
                 <q-btn no-caps unelevated class="fun-btn flat-fun bg-mint" icon="undo" label="還原" @click="restore(t)" />
                 <q-btn no-caps unelevated class="fun-btn flat-fun bg-surface" label="永久刪除" @click="purge(t)" />
               </div>

@@ -5,7 +5,7 @@
       <p class="text-sub q-ma-none" style="font-size: 15px">外觀、分類和寄信</p>
     </div>
 
-    <section class="fun-card q-pa-lg row items-center justify-between q-col-gutter-md" aria-label="外觀">
+    <section class="fun-card q-pa-lg row items-center justify-between" style="gap: 16px" aria-label="外觀">
       <div>
         <h2 class="section-title">外觀</h2>
         <div class="text-sub">選擇會記在這台電腦的瀏覽器裡</div>
@@ -28,7 +28,7 @@
       </div>
       <draggable :list="rows" item-key="id" handle=".drag-handle" class="column q-gutter-y-sm" @end="onDrop">
         <template #item="{ element: c }">
-          <div class="cat-row row items-center no-wrap q-gutter-x-sm">
+          <div class="cat-row row items-center no-wrap" style="gap: 8px">
             <q-icon name="drag_indicator" class="drag-handle" size="20px" aria-label="拖曳排序" />
             <button type="button" class="swatch" :style="{ background: c.color }" :aria-label="`改變「${c.name}」的顏色`">
               <q-menu anchor="bottom left" self="top left">
@@ -52,7 +52,7 @@
           </div>
         </template>
       </draggable>
-      <div class="row no-wrap q-gutter-x-sm">
+      <div class="row no-wrap" style="gap: 8px">
         <q-input v-model="newName" dense outlined class="col" placeholder="新分類名稱，例如：專案A" maxlength="30" @keydown.enter="add" />
         <q-btn no-caps unelevated class="fun-btn bg-accent-fun" icon="add" label="新增分類" @click="add" />
       </div>
@@ -63,7 +63,7 @@
         <h2 class="section-title">寄信測試</h2>
         <div class="text-sub">每日摘要信會在階段 4 做出來，現在可以先確認寄信設定是否正常。只能寄到 Resend 帳號的 Email。</div>
       </div>
-      <div class="row no-wrap q-gutter-x-sm">
+      <div class="row no-wrap" style="gap: 8px">
         <q-input v-model="to" dense outlined type="email" class="col" placeholder="你的 Resend 帳號 Email" />
         <q-btn no-caps unelevated class="fun-btn bg-surface" label="寄送測試信" :loading="sending" :disable="!to" @click="sendTest" />
       </div>
@@ -87,7 +87,7 @@ const tasks = useTasksStore()
 
 // draggable 需要可變陣列，store 變動時重建本地副本
 const rows = ref([])
-watch(() => cats.list, l => { rows.value = [...l] }, { immediate: true })
+watch(() => cats.list, l => { rows.value = [...l] }, { immediate: true, deep: true })
 
 const countOf = id => tasks.tasks.filter(t => t.category_id === id).length
 

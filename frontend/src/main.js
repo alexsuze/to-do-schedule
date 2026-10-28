@@ -16,7 +16,10 @@ app.use(router)
 app.use(Quasar, {
   plugins: { Notify, Dialog, Dark },
   // 沒選過就跟隨系統
-  config: { dark: savedTheme() ?? 'auto' },
+  config: {
+    dark: savedTheme() ?? 'auto',
+    notify: { position: 'top-right', timeout: 2500 }
+  },
   lang: quasarLang
 })
 app.mount('#app')

@@ -1,11 +1,11 @@
 <template>
   <q-page class="page">
-    <div class="row items-end justify-between q-col-gutter-md q-mb-lg">
+    <div class="row items-end justify-between q-mb-lg" style="gap: 16px">
       <div>
         <h1 class="page-title">任務</h1>
         <p class="text-sub q-ma-none" style="font-size: 15px">{{ openCount }} 個未完成，一張一張來就好</p>
       </div>
-      <div class="row items-center q-gutter-md">
+      <div class="row items-center" style="gap: 16px">
         <q-btn-toggle
           v-model="filter"
           class="fun-toggle"

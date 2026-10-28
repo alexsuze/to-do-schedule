@@ -10,7 +10,7 @@
 
     <q-drawer v-model="drawer" show-if-above :width="240" class="side">
       <div class="column no-wrap full-height q-pa-md">
-        <div class="row items-center no-wrap q-gutter-x-sm q-pb-lg q-pt-xs">
+        <div class="row items-center no-wrap q-pb-lg q-pt-xs" style="gap: 10px">
           <div class="logo"><q-icon name="check" size="26px" /></div>
           <div class="column">
             <span class="text-weight-bold" style="font-size: 18px">工作事項管理</span>

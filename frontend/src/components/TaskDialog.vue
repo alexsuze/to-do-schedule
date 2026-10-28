@@ -1,18 +1,18 @@
 <template>
   <!-- 新增 / 編輯任務；task 為 null 時是新增 -->
   <q-dialog :model-value="modelValue" @update:model-value="v => emit('update:modelValue', v)" @before-show="reset">
-    <q-card style="width: 560px; max-width: 95vw" class="q-pa-md">
-      <q-card-section class="row items-center no-wrap q-pb-sm">
+    <q-card class="dialog-card">
+      <div class="row items-center no-wrap">
         <div class="font-round text-weight-bold" style="font-size: 26px">{{ task ? '編輯任務' : '新增任務' }}</div>
         <q-space />
         <q-btn flat round icon="close" aria-label="關閉" v-close-popup />
-      </q-card-section>
+      </div>
 
-      <q-card-section class="column q-gutter-y-md">
+      <div class="dialog-body">
         <q-input v-model="form.title" label="標題" outlined autofocus maxlength="100" />
-        <q-input v-model="form.description" label="描述" outlined type="textarea" autogrow />
-        <div class="row q-col-gutter-md">
-          <div class="col-12 col-sm-6">
+        <q-input v-model="form.description" label="描述" outlined type="textarea" autogrow input-style="min-height: 72px" />
+        <div class="two-col">
+          <div>
             <q-select v-model="form.category_id" :options="catOptions" label="分類" outlined emit-value map-options>
               <template #option="{ itemProps, opt }">
                 <q-item v-bind="itemProps">
@@ -25,17 +25,17 @@
               </template>
             </q-select>
           </div>
-          <div class="col-12 col-sm-6">
-            <DateTimeField v-model="form.deadline" label="死線" default-time="18:00" />
+          <div>
+            <DateTimeField v-model="form.deadline" label="死線" default-time="18:00" outlined />
           </div>
         </div>
 
-        <div class="subtasks column q-gutter-y-sm">
+        <div class="subtasks">
           <div class="row justify-between items-center">
             <span class="text-weight-bold" style="font-size: 16px">子任務</span>
             <span class="font-round text-weight-bold">{{ doneCount }} / {{ form.subtasks.length }}</span>
           </div>
-          <draggable :list="form.subtasks" item-key="id" handle=".drag-handle" class="column q-gutter-y-sm">
+          <draggable :list="form.subtasks" item-key="id" handle=".drag-handle" class="column" style="gap: 10px">
             <template #item="{ element: s, index }">
               <div class="sub-row row items-center no-wrap">
                 <q-icon name="drag_indicator" class="drag-handle q-px-xs" size="20px" aria-label="拖曳排序" />
@@ -49,14 +49,14 @@
             <template #prepend><q-icon name="add" /></template>
           </q-input>
         </div>
-      </q-card-section>
+      </div>
 
-      <q-card-actions class="q-px-md q-pt-md row q-gutter-sm">
+      <div class="dialog-actions">
         <q-btn v-if="task" no-caps unelevated class="fun-btn flat-fun bg-surface" icon="delete_outline" label="移到回收桶" @click="remove" />
         <q-space />
         <q-btn v-if="task" no-caps unelevated class="fun-btn flat-fun bg-mint" :label="form.done ? '改回未完成' : '標記完成'" :loading="saving" @click="save(!form.done)" />
         <q-btn no-caps unelevated class="fun-btn bg-accent-fun" label="儲存" :loading="saving" @click="save(form.done)" />
-      </q-card-actions>
+      </div>
     </q-card>
   </q-dialog>
 </template>
@@ -140,7 +140,15 @@ function remove () {
 </script>
 
 <style scoped>
-.subtasks { padding: 14px; border-radius: 18px; border: 2px dashed var(--line); background: var(--soft); }
+.dialog-card { width: 620px; max-width: 95vw; padding: 24px 28px; display: flex; flex-direction: column; gap: 20px; }
+.dialog-body { display: flex; flex-direction: column; gap: 20px; }
+.two-col { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 600px) {
+  .dialog-card { padding: 20px 16px; }
+  .two-col { grid-template-columns: minmax(0, 1fr); }
+}
+.dialog-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding-top: 16px; border-top: 2px dashed var(--grid); }
+.subtasks { display: flex; flex-direction: column; gap: 12px; padding: 16px; border-radius: 18px; border: 2px dashed var(--line); background: var(--soft); }
 .sub-row { min-height: 48px; padding: 0 6px; border-radius: 14px; border: 2px solid var(--line); background: var(--surface); }
 :deep(.sub-done) { text-decoration: line-through; color: var(--sub); }
 </style>
