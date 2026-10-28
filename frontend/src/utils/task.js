@@ -6,8 +6,11 @@ const WEEKDAYS = '日一二三四五六'
 
 export const TRASH_KEEP_DAYS = 30
 
-// 分類預設色盤（粉嫩色，文字一律用深色）
-export const PALETTE = ['#8FD3FF', '#8EE3B8', '#FFD966', '#FFB3C7', '#C9B6FF', '#FFC49E', '#A6E3E9', '#E2DCEB']
+// 分類預設色盤（粉嫩色，文字一律用深色）；新增分類依序輪流取色
+export const PALETTE = [
+  '#8FD3FF', '#8EE3B8', '#FFD966', '#FFB3C7', '#C9B6FF', '#FFC49E', '#A6E3E9', '#E2DCEB',
+  '#FF9F9F', '#C5E88A', '#7FD8C9', '#A9B8FF', '#F5A3D8', '#FFB570', '#E8D3B0', '#B9D7A8'
+]
 export const UNCATEGORIZED_COLOR = '#E2DCEB'
 
 // 'overdue' | 'soon'（24 小時內）| ''；已完成不提示

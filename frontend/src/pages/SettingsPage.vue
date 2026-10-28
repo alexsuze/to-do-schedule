@@ -32,12 +32,15 @@
             <q-icon name="drag_indicator" class="drag-handle" size="20px" aria-label="拖曳排序" />
             <button type="button" class="swatch" :style="{ background: c.color }" :aria-label="`改變「${c.name}」的顏色`">
               <q-menu anchor="bottom left" self="top left">
-                <div class="row q-pa-sm q-gutter-xs" style="width: 196px">
+                <div class="palette">
                   <button
                     v-for="p in PALETTE" :key="p" v-close-popup type="button"
-                    class="swatch" :style="{ background: p }" :aria-label="`顏色 ${p}`"
-                    @click="cats.update(c, { color: p })"
-                  />
+                    class="swatch" :style="{ background: p }"
+                    :aria-label="`顏色 ${p}`" :aria-pressed="String(p === c.color)"
+                    @click="p !== c.color && cats.update(c, { color: p })"
+                  >
+                    <q-icon v-if="p === c.color" name="check" size="20px" color="dark" />
+                  </button>
                 </div>
               </q-menu>
             </button>
@@ -217,5 +220,10 @@ onMounted(() => Promise.all([cats.load(), tasks.load(), api.get('/settings').the
 .mail-grid { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 16px; }
 .mail-grid > * { flex: 1 1 220px; }
 .cat-row { min-height: 52px; padding: 0 6px 0 10px; border-radius: 16px; border: 2px solid var(--line); background: var(--bg); }
-.swatch { width: 32px; height: 32px; flex-shrink: 0; border-radius: 10px; border: 2px solid #2A2633; cursor: pointer; padding: 0; }
+.swatch {
+  width: 32px; height: 32px; flex-shrink: 0; border-radius: 10px; border: 2px solid #2A2633; cursor: pointer; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.palette { display: grid; grid-template-columns: repeat(4, 36px); gap: 8px; padding: 12px; }
+.palette .swatch { width: 36px; height: 36px; }
 </style>
