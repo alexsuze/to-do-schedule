@@ -43,11 +43,7 @@
             </button>
             <span class="col" style="font-size: 16px">{{ c.name }}</span>
             <span class="text-sub" style="font-size: 13px">{{ countOf(c.id) }} 個任務</span>
-            <q-btn flat round icon="edit" :aria-label="`改名「${c.name}」`">
-              <q-popup-edit v-slot="scope" :model-value="c.name" buttons label-set="儲存" label-cancel="取消" @save="v => rename(c, v)">
-                <q-input v-model="scope.value" dense autofocus maxlength="30" @keyup.enter="scope.set" />
-              </q-popup-edit>
-            </q-btn>
+            <q-btn flat round icon="edit" :aria-label="`改名「${c.name}」`" @click="renaming = { c, name: c.name }" />
             <q-btn flat round icon="delete_outline" :aria-label="`刪除「${c.name}」`" @click="remove(c)" />
           </div>
         </template>
@@ -68,6 +64,18 @@
         <q-btn no-caps unelevated class="fun-btn bg-surface" label="寄送測試信" :loading="sending" :disable="!to" @click="sendTest" />
       </div>
     </section>
+
+    <!-- 分類改名；有改過沒儲存就關閉時會先問 -->
+    <q-dialog :model-value="!!renaming" @update:model-value="onRenameToggle">
+      <q-card v-if="renaming" style="width: 420px; max-width: 92vw; padding: 24px" class="column" :style="{ gap: '16px' }">
+        <div class="font-round text-weight-bold" style="font-size: 22px">分類改名</div>
+        <q-input v-model="renaming.name" label="分類名稱" outlined autofocus maxlength="30" @keydown.enter="saveRename" />
+        <div class="row justify-end" style="gap: 10px">
+          <q-btn flat no-caps label="取消" @click="onRenameToggle(false)" />
+          <q-btn no-caps unelevated class="fun-btn bg-accent-fun" label="儲存" @click="saveRename" />
+        </div>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
@@ -80,6 +88,7 @@ import { useCategoriesStore } from '../stores/categories'
 import { useTasksStore } from '../stores/tasks'
 import { PALETTE } from '../utils/task'
 import { setDark } from '../utils/theme'
+import { resolveUnsaved, useUnsavedGuard } from '../utils/unsaved'
 
 const $q = useQuasar()
 const cats = useCategoriesStore()
@@ -99,9 +108,40 @@ async function add () {
   newName.value = ''
 }
 
-function rename (c, name) {
-  if (name.trim() && name.trim() !== c.name) cats.update(c, { name: name.trim() })
+/* 改名：renaming = { c, name } */
+const renaming = ref(null)
+const renameDirty = () => !!renaming.value && renaming.value.name.trim() !== renaming.value.c.name
+
+// 成功（或沒改）回傳 true；名稱空白回傳 false；API 失敗會丟錯
+async function saveRename () {
+  const r = renaming.value
+  const name = r.name.trim()
+  if (!name) {
+    $q.notify({ type: 'warning', message: '請輸入分類名稱' })
+    return false
+  }
+  if (name !== r.c.name) await cats.update(r.c, { name })
+  renaming.value = null
+  return true
 }
+
+async function onRenameToggle (open) {
+  if (open) return
+  if (!renameDirty() || await resolveUnsaved(saveRename)) renaming.value = null
+}
+
+/* 換頁時：還沒按新增的分類名稱、還沒儲存的改名 */
+useUnsavedGuard(
+  () => !!newName.value.trim() || renameDirty(),
+  async () => {
+    if (renameDirty() && !(await saveRename())) return false
+    if (newName.value.trim()) await add()
+    return true
+  },
+  () => newName.value.trim() && !renameDirty()
+    ? `「${newName.value.trim()}」還沒按新增分類，要怎麼處理？`
+    : undefined
+)
 
 function onDrop () {
   cats.reorder(rows.value.map(c => c.id)).catch(() => { rows.value = [...cats.list] })

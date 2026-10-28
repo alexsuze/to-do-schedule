@@ -1,6 +1,6 @@
 <template>
   <!-- 新增 / 編輯任務；task 為 null 時是新增 -->
-  <q-dialog :model-value="modelValue" @update:model-value="v => emit('update:modelValue', v)" @before-show="reset">
+  <q-dialog :model-value="modelValue" @update:model-value="onToggle" @before-show="reset">
     <q-card class="dialog-card">
       <div class="row items-center no-wrap">
         <div class="font-round text-weight-bold" style="font-size: 26px">{{ task ? '編輯任務' : '新增任務' }}</div>
@@ -77,6 +77,7 @@ import { useCategoriesStore } from '../stores/categories'
 import { useBlocksStore } from '../stores/blocks'
 import { isoToLocal, localToIso, UNCATEGORIZED_COLOR } from '../utils/task'
 import { formatHours } from '../utils/timeline'
+import { resolveUnsaved, useUnsavedGuard } from '../utils/unsaved'
 
 const props = defineProps({
   modelValue: Boolean,
@@ -99,7 +100,8 @@ const catOptions = computed(() => [
 ])
 const doneCount = computed(() => form.value.subtasks.filter(s => s.done).length)
 
-// 每次打開都從原任務複製一份，取消就不影響原資料
+// 每次打開都從原任務複製一份，取消就不影響原資料；snapshot 用來判斷有沒有改過
+const snapshot = ref('')
 function reset () {
   const t = props.task
   form.value = {
@@ -111,7 +113,16 @@ function reset () {
     done: !!t?.done
   }
   newSub.value = ''
+  snapshot.value = JSON.stringify(form.value)
 }
+const dirty = () => props.modelValue && (JSON.stringify(form.value) !== snapshot.value || !!newSub.value.trim())
+
+// 關閉（✕、ESC、點視窗外）時，有未儲存的修改就先問
+async function onToggle (open) {
+  if (open || !dirty() || saving.value) return emit('update:modelValue', open)
+  if (await resolveUnsaved(() => save(form.value.done))) emit('update:modelValue', false)
+}
+useUnsavedGuard(dirty, () => save(form.value.done))
 
 function addSub () {
   const name = newSub.value.trim()
@@ -120,16 +131,20 @@ function addSub () {
   newSub.value = ''
 }
 
+// 成功回傳 true；標題空白回傳 false；API 失敗會丟錯（錯誤訊息由 api.js 顯示）
 async function save (done) {
   if (!form.value.title.trim()) {
     $q.notify({ type: 'warning', message: '請輸入標題' })
-    return
+    return false
   }
   addSub() // 還沒按 Enter 的子任務也一起存
   saving.value = true
   try {
     await tasks.save({ ...form.value, id: props.task?.id, deadline: localToIso(form.value.deadline), done })
+    snapshot.value = JSON.stringify(form.value)
     emit('update:modelValue', false)
+    $q.notify({ type: 'positive', message: props.task ? '已儲存' : '已新增任務' })
+    return true
   } finally {
     saving.value = false
   }
