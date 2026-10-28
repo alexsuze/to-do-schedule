@@ -63,13 +63,17 @@
           <h2 class="section-title">Email 每日摘要</h2>
           <div class="text-sub">今天到期、已逾期、今天排的時段，一封信看完。都沒有就不寄。</div>
         </div>
-        <q-toggle v-model="mail.digest_enabled" color="primary" :label="mail.digest_enabled ? '已開啟' : '已關閉'" class="text-weight-bold" />
+        <q-toggle v-model="mail.digest_enabled" :disable="!available" color="primary" :label="mail.digest_enabled ? '已開啟' : '已關閉'" class="text-weight-bold" />
       </div>
-      <div class="mail-grid">
-        <q-input v-model="mail.email" outlined type="email" label="收件 Email" hint="只能寄到 Resend 帳號的 Email" />
+      <div v-if="!available" class="notice bg-soft">
+        <q-icon name="info_outline" size="20px" />
+        <span>每日摘要目前僅限管理員使用（寄信服務尚未開放寄給其他人）。</span>
+      </div>
+      <div v-else class="mail-grid">
+        <q-input :model-value="email" outlined readonly label="收件 Email" hint="固定寄到你登入用的 Google 帳號" />
         <q-input v-model="mail.digest_time" outlined type="time" label="寄送時間" stack-label hint="台北時間（Asia/Taipei）" />
       </div>
-      <div class="row items-center justify-between" style="gap: 12px">
+      <div v-if="available" class="row items-center justify-between" style="gap: 12px">
         <span class="text-sub" style="font-size: 13px">{{ lastResult ? `上次：${lastResult}` : '還沒寄過摘要' }}</span>
         <div class="row" style="gap: 10px">
           <q-btn no-caps unelevated class="fun-btn bg-surface" label="寄送測試信" :loading="sending" @click="sendTest" />
@@ -143,11 +147,13 @@ async function onRenameToggle (open) {
   if (!renameDirty() || await resolveUnsaved(saveRename)) renaming.value = null
 }
 
-/* Email 每日摘要 */
-const pickMail = s => ({ email: s.email || '', digest_enabled: !!s.digest_enabled, digest_time: s.digest_time || '08:00' })
+/* Email 每日摘要：收件人固定為登入的 Google Email；目前只有管理員可用 */
+const pickMail = s => ({ digest_enabled: !!s.digest_enabled, digest_time: s.digest_time || '08:00' })
 const mail = ref(pickMail({}))
 const savedMail = ref(JSON.stringify(mail.value))
 const lastResult = ref('')
+const email = ref('')
+const available = ref(false)
 const savingMail = ref(false)
 const mailDirty = () => JSON.stringify(mail.value) !== savedMail.value
 
@@ -155,6 +161,8 @@ function applySettings (s) {
   mail.value = pickMail(s)
   savedMail.value = JSON.stringify(mail.value)
   lastResult.value = s.last_digest_result || ''
+  email.value = s.email || ''
+  available.value = !!s.digest_available
 }
 
 // 成功回傳 true；API 失敗會丟錯
@@ -170,13 +178,13 @@ async function saveMail () {
 const sending = ref(false)
 async function sendTest () {
   if (mailDirty()) {
-    $q.notify({ type: 'warning', message: '請先儲存，測試信會寄到已儲存的 Email' })
+    $q.notify({ type: 'warning', message: '請先儲存設定再寄測試信' })
     return
   }
   sending.value = true
   try {
     await api.post('/settings/test-email')
-    $q.notify({ type: 'positive', message: `已寄出測試信到 ${mail.value.email}，請收信` })
+    $q.notify({ type: 'positive', message: `已寄出測試信到 ${email.value}，請收信` })
   } finally { sending.value = false }
 }
 
@@ -217,6 +225,7 @@ onMounted(() => Promise.all([cats.load(), tasks.load(), api.get('/settings').the
 .page { padding: 32px 40px 48px; }
 @media (max-width: 600px) { .page { padding: 20px 16px 32px; } }
 .section-title { margin: 0 0 4px; font-size: 20px; font-weight: 700; line-height: 1.4; }
+.notice { display: flex; align-items: flex-start; gap: 8px; padding: 12px 14px; border-radius: 14px; border: 2px dashed var(--line); font-size: 14px; line-height: 1.5; }
 .mail-grid { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 16px; }
 .mail-grid > * { flex: 1 1 220px; }
 .cat-row { min-height: 52px; padding: 0 6px 0 10px; border-radius: 16px; border: 2px solid var(--line); background: var(--bg); }

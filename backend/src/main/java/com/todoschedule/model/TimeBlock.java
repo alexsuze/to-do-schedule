@@ -14,6 +14,9 @@ public class TimeBlock {
 
     @Id
     public String id;
+    /** 擁有者（users 的 _id）。 */
+    @Field("user_id")
+    public String userId;
     @Field("task_id")
     public String taskId;
     /** 對齊 30 分鐘。 */

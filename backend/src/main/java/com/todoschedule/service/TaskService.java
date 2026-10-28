@@ -15,7 +15,7 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * 任務卡與回收桶（需求書 2.1、2.4）。
+ * 任務卡與回收桶（需求書 2.1、2.4）。只能操作自己的任務。
  */
 @Service
 public class TaskService {
@@ -39,25 +39,26 @@ public class TaskService {
     /** droppedBlocks：刪除期間被其他任務佔用、因此沒還原的時段數。 */
     public record RestoreResult(Task task, int droppedBlocks) {}
 
-    public List<Task> list() {
-        return repo.findByDeletedAtIsNull();
+    public List<Task> list(String userId) {
+        return repo.findByUserIdAndDeletedAtIsNull(userId);
     }
 
-    public Task create(TaskRequest req) {
+    public Task create(String userId, TaskRequest req) {
         Task t = new Task();
+        t.userId = userId;
         apply(t, req);
         return repo.save(t);
     }
 
-    public Task update(String id, TaskRequest req) {
-        Task t = get(id);
+    public Task update(String userId, String id, TaskRequest req) {
+        Task t = get(userId, id);
         if (t.deletedAt != null) throw new ResponseStatusException(HttpStatus.CONFLICT, "任務在回收桶中，請先還原");
         apply(t, req);
         return repo.save(t);
     }
 
-    public void delete(String id) {
-        Task t = get(id);
+    public void delete(String userId, String id) {
+        Task t = get(userId, id);
         if (t.deletedAt != null) return;
         t.deletedAt = Instant.now();
         repo.save(t);
@@ -65,26 +66,27 @@ public class TaskService {
 
     /* 回收桶 */
 
-    public List<Task> trash() {
-        return repo.findByDeletedAtIsNotNullOrderByDeletedAtDesc();
+    public List<Task> trash(String userId) {
+        return repo.findByUserIdAndDeletedAtIsNotNullOrderByDeletedAtDesc(userId);
     }
 
     /** 時段隨任務一起回到時程表，被佔用的不還原。 */
-    public RestoreResult restore(String id) {
-        Task t = trashed(id);
+    public RestoreResult restore(String userId, String id) {
+        Task t = trashed(userId, id);
         t.deletedAt = null;
         repo.save(t);
-        return new RestoreResult(t, blocks.dropConflicts(t.id));
+        return new RestoreResult(t, blocks.dropConflicts(userId, t.id));
     }
 
-    public void purge(String id) {
-        purgeTasks(List.of(trashed(id)));
+    public void purge(String userId, String id) {
+        purgeTasks(List.of(trashed(userId, id)));
     }
 
-    public void purgeAll() {
-        purgeTasks(trash());
+    public void purgeAll(String userId) {
+        purgeTasks(trash(userId));
     }
 
+    /** 不分使用者，清除進回收桶滿 30 天的任務。 */
     @Scheduled(cron = "0 0 3 * * *", zone = "Asia/Taipei")
     public void purgeExpired() {
         purgeTasks(repo.findByDeletedAtBefore(Instant.now().minus(TRASH_KEEP)));
@@ -96,12 +98,14 @@ public class TaskService {
         repo.deleteAll(tasks);
     }
 
-    private Task get(String id) {
-        return repo.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "找不到此任務"));
+    /** 別人的任務一律當作找不到。 */
+    private Task get(String userId, String id) {
+        return repo.findById(id).filter(t -> userId.equals(t.userId))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "找不到此任務"));
     }
 
-    private Task trashed(String id) {
-        Task t = get(id);
+    private Task trashed(String userId, String id) {
+        Task t = get(userId, id);
         if (t.deletedAt == null) throw new ResponseStatusException(HttpStatus.CONFLICT, "此任務不在回收桶中");
         return t;
     }
@@ -110,7 +114,7 @@ public class TaskService {
         String title = req.title() == null ? "" : req.title().trim();
         if (title.isEmpty() || title.length() > 100) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "標題需為 1～100 字");
         String cat = req.categoryId() == null || req.categoryId().isBlank() ? null : req.categoryId();
-        if (cat != null && !categories.exists(cat)) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "分類不存在，請重新選擇");
+        if (cat != null && !categories.exists(t.userId, cat)) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "分類不存在，請重新選擇");
 
         t.title = title;
         t.description = req.description() == null ? "" : req.description();

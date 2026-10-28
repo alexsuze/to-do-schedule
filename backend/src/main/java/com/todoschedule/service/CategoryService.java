@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.regex.Pattern;
 
 /**
- * 分類管理（需求書 2.3）。刪除分類時任務改為未分類，不刪任務。
+ * 分類管理（需求書 2.3）。刪除分類時任務改為未分類，不刪任務。只能操作自己的分類。
  */
 @Service
 public class CategoryService {
@@ -29,25 +29,26 @@ public class CategoryService {
 
     public record CategoryRequest(String name, String color) {}
 
-    public List<Category> list() {
-        return repo.findAllByOrderByOrderAsc();
+    public List<Category> list(String userId) {
+        return repo.findByUserIdOrderByOrderAsc(userId);
     }
 
-    public Category create(CategoryRequest req) {
+    public Category create(String userId, CategoryRequest req) {
         Category c = new Category();
+        c.userId = userId;
         apply(c, req);
-        c.order = list().stream().mapToInt(x -> x.order + 1).max().orElse(0);
+        c.order = list(userId).stream().mapToInt(x -> x.order + 1).max().orElse(0);
         return repo.save(c);
     }
 
-    public Category update(String id, CategoryRequest req) {
-        Category c = get(id);
+    public Category update(String userId, String id, CategoryRequest req) {
+        Category c = get(userId, id);
         apply(c, req);
         return repo.save(c);
     }
 
-    public void delete(String id) {
-        get(id);
+    public void delete(String userId, String id) {
+        get(userId, id);
         List<Task> tasks = taskRepo.findByCategoryId(id);
         tasks.forEach(t -> t.categoryId = null);
         taskRepo.saveAll(tasks);
@@ -55,22 +56,24 @@ public class CategoryService {
     }
 
     /** ids 為新的完整順序。 */
-    public List<Category> reorder(List<String> ids) {
-        List<Category> all = list();
+    public List<Category> reorder(String userId, List<String> ids) {
+        List<Category> all = list(userId);
         if (ids == null || ids.size() != all.size() || !ids.containsAll(all.stream().map(c -> c.id).toList())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "分類順序與現有分類不符，請重新整理");
         }
         all.forEach(c -> c.order = ids.indexOf(c.id));
         repo.saveAll(all);
-        return list();
+        return list(userId);
     }
 
-    public boolean exists(String id) {
-        return repo.existsById(id);
+    public boolean exists(String userId, String id) {
+        return repo.findById(id).filter(c -> userId.equals(c.userId)).isPresent();
     }
 
-    private Category get(String id) {
-        return repo.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "找不到此分類"));
+    /** 別人的分類一律當作找不到。 */
+    private Category get(String userId, String id) {
+        return repo.findById(id).filter(c -> userId.equals(c.userId))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "找不到此分類"));
     }
 
     private static void apply(Category c, CategoryRequest req) {

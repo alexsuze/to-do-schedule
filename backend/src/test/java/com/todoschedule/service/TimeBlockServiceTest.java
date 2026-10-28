@@ -22,7 +22,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/** 時段規則：30 分鐘、不跨日、不重疊、回收桶任務不佔用、還原時丟掉被佔用的時段。不需要 MongoDB。 */
+/** 時段規則：30 分鐘、不跨日、不與自己的時段重疊、回收桶任務不佔用、還原時丟掉被佔用的時段、使用者互不影響。不需要 MongoDB。 */
 class TimeBlockServiceTest {
 
     private final TimeBlockRepository repo = mock(TimeBlockRepository.class);
@@ -32,7 +32,8 @@ class TimeBlockServiceTest {
     private final List<Task> tasks = new ArrayList<>();
 
     TimeBlockServiceTest() {
-        when(repo.findAll()).thenAnswer(inv -> new ArrayList<>(blocks));
+        when(repo.findByUserId(anyString())).thenAnswer(inv ->
+                blocks.stream().filter(b -> b.userId.equals(inv.getArgument(0))).toList());
         when(repo.save(any(TimeBlock.class))).thenAnswer(inv -> {
             TimeBlock b = inv.getArgument(0);
             if (b.id == null) { b.id = "b" + (blocks.size() + 1); blocks.add(b); }
@@ -45,15 +46,20 @@ class TimeBlockServiceTest {
         doAnswer(inv -> { blocks.removeAll((Collection<?>) inv.getArgument(0)); return null; }).when(repo).deleteAll(any());
         when(taskRepo.findById(anyString())).thenAnswer(inv ->
                 tasks.stream().filter(t -> t.id.equals(inv.getArgument(0))).findFirst());
-        when(taskRepo.findByDeletedAtIsNotNullOrderByDeletedAtDesc()).thenAnswer(inv ->
-                tasks.stream().filter(t -> t.deletedAt != null).toList());
-        tasks.add(task("A"));
-        tasks.add(task("B"));
+        when(taskRepo.findByUserIdAndDeletedAtIsNotNullOrderByDeletedAtDesc(anyString())).thenAnswer(inv ->
+                tasks.stream().filter(t -> t.deletedAt != null && t.userId.equals(inv.getArgument(0))).toList());
+        tasks.add(task("A", ME));
+        tasks.add(task("B", ME));
+        tasks.add(task("X", OTHER));
     }
 
-    private static Task task(String id) {
+    private static final String ME = "u1";
+    private static final String OTHER = "u2";
+
+    private static Task task(String id, String userId) {
         Task t = new Task();
         t.id = id;
+        t.userId = userId;
         return t;
     }
 
@@ -63,7 +69,7 @@ class TimeBlockServiceTest {
     }
 
     private TimeBlock create(String taskId, Instant s, Instant e) {
-        return service.create(new BlockRequest(taskId, s, e));
+        return service.create(ME, new BlockRequest(taskId, s, e));
     }
 
     @Test
@@ -76,7 +82,7 @@ class TimeBlockServiceTest {
 
         create("B", at(10, 30), at(11, 0)); // 緊接著可以
         create("B", at(23, 30), at(24, 0)); // 結束在午夜可以
-        service.update(a.id, new BlockRequest(null, at(8, 0), at(10, 30))); // 自己延展不算重疊
+        service.update(ME, a.id, new BlockRequest(null, at(8, 0), at(10, 30))); // 自己延展不算重疊
         assertEquals(at(8, 0), a.startAt);
     }
 
@@ -86,11 +92,24 @@ class TimeBlockServiceTest {
         create("A", at(14, 0), at(15, 0));
         tasks.get(0).deletedAt = Instant.now();
 
-        assertEquals(0, service.list().size());
+        assertEquals(0, service.list(ME).size());
         create("B", at(9, 0), at(9, 30)); // A 在回收桶，這段時間可以用
 
         tasks.get(0).deletedAt = null;
-        assertEquals(1, service.dropConflicts("A"));
-        assertEquals(2, service.list().size());
+        assertEquals(1, service.dropConflicts(ME, "A"));
+        assertEquals(2, service.list(ME).size());
+    }
+
+    @Test
+    void usersDoNotAffectEachOther() {
+        TimeBlock mine = create("A", at(9, 0), at(10, 0));
+        // 別人同一時間排自己的任務可以（重疊只看自己的時段）
+        service.create(OTHER, new BlockRequest("X", at(9, 0), at(10, 0)));
+        // 不能把時段排到別人的任務上，也不能動別人的時段
+        assertThrows(ResponseStatusException.class, () -> service.create(OTHER, new BlockRequest("A", at(11, 0), at(12, 0))));
+        assertThrows(ResponseStatusException.class, () -> service.update(OTHER, mine.id, new BlockRequest(null, at(13, 0), at(14, 0))));
+        assertThrows(ResponseStatusException.class, () -> service.delete(OTHER, mine.id));
+        assertEquals(1, service.list(ME).size());
+        assertEquals(1, service.list(OTHER).size());
     }
 }

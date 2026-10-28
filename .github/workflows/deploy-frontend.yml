@@ -36,7 +36,7 @@ jobs:
           # GitHub Pages 子路徑：/<repo 名稱>/
           VITE_BASE_PATH: /${{ github.event.repository.name }}/
           VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
-          VITE_API_TOKEN: ${{ secrets.VITE_API_TOKEN }}
+          VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: frontend/dist

@@ -12,13 +12,16 @@ import java.util.List;
 
 /**
  * 任務卡。欄位定義見 Doc/MongoDB資料結構.md。
- * ponytail: category_id 以 ObjectId 的 hex 字串儲存，單人系統不需 DBRef。
+ * ponytail: user_id / category_id 以 ObjectId 的 hex 字串儲存，不用 DBRef。
  */
 @Document("tasks")
 public class Task {
 
     @Id
     public String id;
+    /** 擁有者（users 的 _id）。 */
+    @Field("user_id")
+    public String userId;
     public String title;
     public String description;
     @Field("category_id")

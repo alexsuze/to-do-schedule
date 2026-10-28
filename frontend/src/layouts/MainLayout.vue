@@ -22,9 +22,27 @@
           <router-link v-for="n in NAV" :key="n.name" :to="{ name: n.name }" class="nav-item" active-class="nav-active" exact-active-class="nav-active">
             <q-icon :name="n.icon" size="22px" />{{ n.label }}
           </router-link>
+          <router-link v-if="auth.isAdmin" :to="{ name: 'admin' }" class="nav-item" active-class="nav-active">
+            <q-icon name="admin_panel_settings" size="22px" />管理
+            <span v-if="auth.pendingCount" class="badge" :aria-label="`${auth.pendingCount} 個待核准`">{{ auth.pendingCount }}</span>
+          </router-link>
         </nav>
 
         <q-space />
+
+        <div v-if="auth.user" class="me row items-center no-wrap">
+          <q-avatar size="36px" class="avatar">
+            <img v-if="auth.user.picture" :src="auth.user.picture" alt="" referrerpolicy="no-referrer">
+            <span v-else>{{ (auth.user.name || auth.user.email || '?').slice(0, 1) }}</span>
+          </q-avatar>
+          <div class="column col" style="min-width: 0">
+            <span class="text-weight-bold ellipsis" style="font-size: 14px">{{ auth.user.name }}</span>
+            <span class="text-sub ellipsis" style="font-size: 12px">{{ auth.user.email }}</span>
+          </div>
+          <q-btn flat round icon="logout" aria-label="登出" @click="auth.logout()">
+            <q-tooltip>登出</q-tooltip>
+          </q-btn>
+        </div>
 
         <q-btn no-caps unelevated class="fun-btn bg-surface full-width" :aria-label="'切換深色或淺色模式'" @click="setDark(!$q.dark.isActive)">
           <q-icon :name="$q.dark.isActive ? 'dark_mode' : 'light_mode'" size="20px" class="q-mr-sm" />
@@ -42,10 +60,14 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { setDark } from '../utils/theme'
+import { useAuthStore } from '../stores/auth'
 
 const drawer = ref(false)
+const auth = useAuthStore()
+
+onMounted(() => auth.loadPending())
 
 const NAV = [
   { name: 'tasks', label: '任務', icon: 'task_alt' },
@@ -72,6 +94,13 @@ const NAV = [
   color: var(--ink); text-decoration: none; font-size: 16px;
 }
 .nav-item:hover { background: var(--soft); }
+.badge {
+  margin-left: auto; min-width: 22px; height: 22px; padding: 0 6px; box-sizing: border-box;
+  border-radius: 999px; border: 2px solid var(--line); background: var(--danger); color: var(--on-color);
+  font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+}
+.me { gap: 10px; padding: 10px 8px; margin-bottom: 10px; border-top: 2px dashed var(--grid); }
+.avatar { border: 2px solid var(--line); background: var(--soft); font-weight: 700; flex-shrink: 0; }
 .nav-active, .nav-active:hover {
   background: var(--accent); color: var(--on-color);
   border-color: var(--line); box-shadow: 3px 3px 0 var(--edge); font-weight: 700;

@@ -17,8 +17,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * 時程表時段（需求書 3.2）：30 分鐘為單位、不可跨日、不可重疊。
- * 回收桶中任務的時段不顯示、不佔用時間。
+ * 時程表時段（需求書 3.2）：30 分鐘為單位、不可跨日、不可與自己的其他時段重疊。
+ * 回收桶中任務的時段不顯示、不佔用時間。只能操作自己的時段。
  */
 @Service
 public class TimeBlockService {
@@ -37,37 +37,38 @@ public class TimeBlockService {
 
     public record BlockRequest(String taskId, Instant startAt, Instant endAt) {}
 
-    /** 有效時段（所屬任務不在回收桶）。ponytail: 一次回傳全部，資料量變大再加日期區間查詢。 */
-    public List<TimeBlock> list() {
-        Set<String> trashed = taskRepo.findByDeletedAtIsNotNullOrderByDeletedAtDesc().stream()
+    /** 自己的有效時段（所屬任務不在回收桶）。ponytail: 一次回傳全部，資料量變大再加日期區間查詢。 */
+    public List<TimeBlock> list(String userId) {
+        Set<String> trashed = taskRepo.findByUserIdAndDeletedAtIsNotNullOrderByDeletedAtDesc(userId).stream()
                 .map(t -> t.id).collect(Collectors.toSet());
-        return repo.findAll().stream().filter(b -> !trashed.contains(b.taskId)).toList();
+        return repo.findByUserId(userId).stream().filter(b -> !trashed.contains(b.taskId)).toList();
     }
 
-    public TimeBlock create(BlockRequest req) {
+    public TimeBlock create(String userId, BlockRequest req) {
         Task task = taskRepo.findById(req.taskId() == null ? "" : req.taskId())
-                .filter(t -> t.deletedAt == null)
+                .filter(t -> userId.equals(t.userId) && t.deletedAt == null)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "找不到此任務"));
         TimeBlock b = new TimeBlock();
+        b.userId = userId;
         b.taskId = task.id;
         place(b, req.startAt(), req.endAt());
         return repo.save(b);
     }
 
     /** 移動或延展：只改起訖時間。 */
-    public TimeBlock update(String id, BlockRequest req) {
-        TimeBlock b = get(id);
+    public TimeBlock update(String userId, String id, BlockRequest req) {
+        TimeBlock b = get(userId, id);
         place(b, req.startAt(), req.endAt());
         return repo.save(b);
     }
 
-    public void delete(String id) {
-        repo.delete(get(id));
+    public void delete(String userId, String id) {
+        repo.delete(get(userId, id));
     }
 
     /** 任務還原後呼叫：刪除期間被其他任務佔用的時段不還原，回傳刪掉幾個。 */
-    int dropConflicts(String taskId) {
-        List<TimeBlock> others = list().stream().filter(b -> !b.taskId.equals(taskId)).toList();
+    int dropConflicts(String userId, String taskId) {
+        List<TimeBlock> others = list(userId).stream().filter(b -> !b.taskId.equals(taskId)).toList();
         List<TimeBlock> clash = repo.findByTaskId(taskId).stream()
                 .filter(m -> others.stream().anyMatch(o -> overlaps(o, m.startAt, m.endAt)))
                 .toList();
@@ -79,8 +80,10 @@ public class TimeBlockService {
         if (!taskIds.isEmpty()) repo.deleteByTaskIdIn(taskIds);
     }
 
-    private TimeBlock get(String id) {
-        return repo.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "找不到此時段，請重新整理"));
+    /** 別人的時段一律當作找不到。 */
+    private TimeBlock get(String userId, String id) {
+        return repo.findById(id).filter(b -> userId.equals(b.userId))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "找不到此時段，請重新整理"));
     }
 
     private void place(TimeBlock b, Instant start, Instant end) {
@@ -93,7 +96,7 @@ public class TimeBlockService {
         if (!start.atZone(ZONE).toLocalDate().equals(end.minusMillis(1).atZone(ZONE).toLocalDate())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "時段不可跨日");
         }
-        boolean clash = list().stream().anyMatch(o -> !o.id.equals(b.id) && overlaps(o, start, end));
+        boolean clash = list(b.userId).stream().anyMatch(o -> !o.id.equals(b.id) && overlaps(o, start, end));
         if (clash) throw new ResponseStatusException(HttpStatus.CONFLICT, "這段時間已經排了其他任務");
         b.startAt = start;
         b.endAt = end;

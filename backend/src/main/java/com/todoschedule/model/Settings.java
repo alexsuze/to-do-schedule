@@ -5,17 +5,14 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 
 /**
- * 系統設定（單筆，id 固定為 {@link #SINGLETON_ID}）。需求書第 5 節。
+ * 個人設定，每位使用者一筆，_id = 使用者 id（需求書 9.4、9.6）。
+ * 摘要收件人固定為帳號的 Google Email，不另外存。
  */
 @Document("settings")
 public class Settings {
 
-    public static final String SINGLETON_ID = "app";
-
     @Id
-    public String id = SINGLETON_ID;
-    /** 摘要收件 Email（Resend 測試寄件者只能寄到 Resend 帳號的 Email）。 */
-    public String email = "";
+    public String id;
     @Field("digest_enabled")
     public boolean digestEnabled;
     /** 每天寄送時間 HH:mm（台北時間）。 */

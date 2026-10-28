@@ -8,12 +8,13 @@ import java.util.List;
 
 public interface TaskRepository extends MongoRepository<Task, String> {
 
-    List<Task> findByDeletedAtIsNull();
+    List<Task> findByUserIdAndDeletedAtIsNull(String userId);
 
     List<Task> findByCategoryId(String categoryId);
 
     /* 回收桶 */
-    List<Task> findByDeletedAtIsNotNullOrderByDeletedAtDesc();
+    List<Task> findByUserIdAndDeletedAtIsNotNullOrderByDeletedAtDesc(String userId);
 
+    /** 30 天自動清除：不分使用者。 */
     List<Task> findByDeletedAtBefore(Instant before);
 }

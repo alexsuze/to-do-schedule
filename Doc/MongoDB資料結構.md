@@ -1,7 +1,8 @@
 # MongoDB 資料結構
 
 資料庫：`todo_schedule`（MongoDB Atlas）。欄位一律 snake_case，時間以 UTC 存。
-API JSON 欄位與 Mongo 欄位相同（snake_case）。不建索引（資料量小，且 `auto-index-creation` 會讓本機沒 Mongo 時無法啟動）。
+API JSON 欄位與 Mongo 欄位相同（snake_case）。
+多人化（需求書第 9 節）：`tasks`、`categories`、`time_blocks` 都有 `user_id`，`settings` 每人一筆；多人化之前的資料沒有 `user_id`，管理員登入時由 `LegacyDataMigrator` 補上管理員的 id。不建索引（資料量小，且 `auto-index-creation` 會讓本機沒 Mongo 時無法啟動）。
 
 ## tasks（階段 1）
 任務卡。
@@ -9,6 +10,7 @@ API JSON 欄位與 Mongo 欄位相同（snake_case）。不建索引（資料量
 | 欄位 | 型別 | 說明 |
 |------|------|------|
 | _id | ObjectId | |
+| user_id | string | 擁有者（users 的 _id） |
 | title | string | 1～100 字 |
 | description | string | 可空字串 |
 | category_id | string / null | categories 的 _id（hex 字串）；null = 未分類 |
@@ -25,6 +27,7 @@ API JSON 欄位與 Mongo 欄位相同（snake_case）。不建索引（資料量
 | 欄位 | 型別 | 說明 |
 |------|------|------|
 | _id | ObjectId | |
+| user_id | string | 擁有者 |
 | name | string | 1～30 字 |
 | color | string | `#RRGGBB`（存大寫） |
 | order | int | 顯示順序，越小越前面 |
@@ -37,22 +40,34 @@ API JSON 欄位與 Mongo 欄位相同（snake_case）。不建索引（資料量
 | 欄位 | 型別 | 說明 |
 |------|------|------|
 | _id | ObjectId | |
+| user_id | string | 擁有者 |
 | task_id | string | tasks 的 _id |
 | start_at | Date | 對齊 30 分鐘 |
 | end_at | Date | 對齊 30 分鐘，與 start_at 同一天（以台北時間判斷），最晚到隔天 00:00 |
 
-- 同一任務可有多筆。時段之間不可重疊（不分任務）。
+- 同一任務可有多筆。同一使用者的時段之間不可重疊（不分任務；不同使用者互不影響）。
 - 所屬任務在回收桶時：時段保留但不回傳、不佔用時間；任務還原時，期間被其他時段佔用的會被刪除。
 - 任務永久刪除時一併刪除。
 
-## settings（階段 4）
-單筆設定，`_id` 固定為 `"app"`；沒有資料時後端回傳預設值。
+## settings（階段 4，v1.1 改為每人一筆）
+`_id` = 使用者 id；沒有資料時後端回傳預設值。摘要收件人固定為帳號的 Google Email（不另存）。
 
 | 欄位 | 型別 | 說明 |
 |------|------|------|
-| _id | string | 固定 `app` |
-| email | string | 摘要收件 Email，可空字串；開啟摘要時必填 |
-| digest_enabled | boolean | 預設 false（填好 Email 再開） |
+| _id | string | 使用者 id（多人化前的舊資料 `_id` 為 `app`，管理員登入時搬到管理員 id 並刪除） |
+| digest_enabled | boolean | 預設 false；`MAIL_ALL_USERS=false` 時只有管理員能開 |
 | digest_time | string | `HH:mm`，台北時間，預設 `08:00` |
 | last_digest_date | string / null | 最後處理摘要的日期 `yyyy-MM-dd`（台北時間），同一天不重複處理 |
 | last_digest_result | string / null | 最後一次結果，例如「10/28 08:00 已寄出」「… 未寄送」「… 寄送失敗：…」，顯示在設定頁 |
+
+## users（v1.1）
+Google 登入的使用者。
+
+| 欄位 | 型別 | 說明 |
+|------|------|------|
+| _id | ObjectId | |
+| google_sub | string | Google 帳號唯一 id（認人用，Email 可能會變） |
+| email / name / picture | string | 每次登入時以 Google 資料更新 |
+| status | string | `pending` 待核准 / `active` 使用中 / `disabled` 已停用；只有 active 能使用 API |
+| admin | boolean | Email 等於 `ADMIN_EMAIL` 者登入時自動設為 true 且 active |
+| created_at / last_login_at | Date | 申請時間 / 最後登入時間 |

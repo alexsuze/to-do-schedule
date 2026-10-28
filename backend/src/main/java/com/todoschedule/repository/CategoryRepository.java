@@ -7,5 +7,5 @@ import java.util.List;
 
 public interface CategoryRepository extends MongoRepository<Category, String> {
 
-    List<Category> findAllByOrderByOrderAsc();
+    List<Category> findByUserIdOrderByOrderAsc(String userId);
 }

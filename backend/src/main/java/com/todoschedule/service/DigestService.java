@@ -4,6 +4,7 @@ import com.todoschedule.config.AppProperties;
 import com.todoschedule.model.Settings;
 import com.todoschedule.model.Task;
 import com.todoschedule.model.TimeBlock;
+import com.todoschedule.model.User;
 import com.todoschedule.repository.TaskRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,8 +30,9 @@ import java.util.stream.Collectors;
 import static com.todoschedule.service.TimeBlockService.ZONE;
 
 /**
- * Email 每日摘要（需求書第 5 節）：今天到期、已逾期、今天的時段。三項都沒有就不寄。
- * 每分鐘檢查一次，過了設定時間且今天還沒處理過就處理（伺服器晚啟動也會補寄）。
+ * Email 每日摘要（需求書第 5 節、9.6）：今天到期、已逾期、今天的時段。三項都沒有就不寄。
+ * 每分鐘檢查一次每位可用摘要的使用者，過了各自設定的時間且今天還沒處理過就處理（伺服器晚啟動也會補寄）。
+ * 收件人為帳號的 Google Email。
  */
 @Service
 public class DigestService {
@@ -41,14 +43,16 @@ public class DigestService {
     private static final String WEEKDAYS = "一二三四五六日";
 
     private final SettingsService settings;
+    private final UserService users;
     private final TaskRepository taskRepo;
     private final TimeBlockService blocks;
     private final EmailService email;
     private final AppProperties props;
 
-    public DigestService(SettingsService settings, TaskRepository taskRepo, TimeBlockService blocks,
+    public DigestService(SettingsService settings, UserService users, TaskRepository taskRepo, TimeBlockService blocks,
                          EmailService email, AppProperties props) {
         this.settings = settings;
+        this.users = users;
         this.taskRepo = taskRepo;
         this.blocks = blocks;
         this.email = email;
@@ -67,22 +71,30 @@ public class DigestService {
 
     @Scheduled(cron = "0 * * * * *", zone = "Asia/Taipei")
     public void tick() {
-        run(ZonedDateTime.now(ZONE));
+        ZonedDateTime now = ZonedDateTime.now(ZONE);
+        for (User u : users.active()) {
+            if (!settings.digestAvailable(u)) continue;
+            try {
+                run(u, now);
+            } catch (RuntimeException e) {
+                log.warn("使用者 {} 的每日摘要處理失敗", u.id, e); // 一個人出錯不影響其他人
+            }
+        }
     }
 
-    void run(ZonedDateTime now) {
-        Settings s = settings.get();
+    void run(User u, ZonedDateTime now) {
+        Settings s = settings.get(u.id);
         String today = now.toLocalDate().toString();
-        if (!s.digestEnabled || s.email.isBlank() || today.equals(s.lastDigestDate)) return;
+        if (!s.digestEnabled || u.email == null || u.email.isBlank() || today.equals(s.lastDigestDate)) return;
         if (now.toLocalTime().isBefore(LocalTime.parse(s.digestTime))) return;
 
-        Digest d = build(now.toInstant());
+        Digest d = build(u.id, now.toInstant());
         String result;
         if (d.isEmpty()) {
             result = "沒有到期、逾期或排程，未寄送";
         } else {
             try {
-                email.send(s.email, subject(d), html(d), text(d));
+                email.send(u.email, subject(d), html(d), text(d));
                 result = "已寄出";
             } catch (IllegalStateException e) {
                 // ponytail: 失敗不重試（避免每分鐘重寄），結果顯示在設定頁
@@ -95,12 +107,12 @@ public class DigestService {
         settings.save(s);
     }
 
-    Digest build(Instant now) {
+    Digest build(String userId, Instant now) {
         ZonedDateTime day = now.atZone(ZONE).toLocalDate().atStartOfDay(ZONE);
         Instant start = day.toInstant();
         Instant end = day.plusDays(1).toInstant();
 
-        List<Task> tasks = taskRepo.findByDeletedAtIsNull();
+        List<Task> tasks = taskRepo.findByUserIdAndDeletedAtIsNull(userId);
         List<Task> open = tasks.stream()
                 .filter(t -> !t.done && t.deadline != null)
                 .sorted(Comparator.comparing((Task t) -> t.deadline))
@@ -113,7 +125,7 @@ public class DigestService {
                 .map(t -> fmt(t.deadline, MD_HM) + " " + t.title).toList();
 
         Map<String, Task> byId = tasks.stream().collect(Collectors.toMap(t -> t.id, Function.identity()));
-        List<TimeBlock> all = blocks.list().stream().filter(b -> byId.containsKey(b.taskId)).toList();
+        List<TimeBlock> all = blocks.list(userId).stream().filter(b -> byId.containsKey(b.taskId)).toList();
         List<String> schedule = all.stream()
                 .filter(b -> !b.startAt.isBefore(start) && b.startAt.isBefore(end))
                 .sorted(Comparator.comparing((TimeBlock b) -> b.startAt))
