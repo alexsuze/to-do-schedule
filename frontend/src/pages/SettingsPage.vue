@@ -2,7 +2,7 @@
   <q-page class="page column q-gutter-y-lg" style="max-width: 860px">
     <div>
       <h1 class="page-title">設定</h1>
-      <p class="text-sub q-ma-none" style="font-size: 15px">外觀、分類和寄信</p>
+      <p class="text-sub q-ma-none" style="font-size: 15px">外觀、分類和每日摘要信</p>
     </div>
 
     <section class="fun-card q-pa-lg row items-center justify-between" style="gap: 16px" aria-label="外觀">
@@ -54,14 +54,24 @@
       </div>
     </section>
 
-    <section class="fun-card q-pa-lg column q-gutter-y-md" aria-label="寄信">
-      <div>
-        <h2 class="section-title">寄信測試</h2>
-        <div class="text-sub">每日摘要信會在階段 4 做出來，現在可以先確認寄信設定是否正常。只能寄到 Resend 帳號的 Email。</div>
+    <section class="fun-card q-pa-lg" style="display: flex; flex-direction: column; gap: 16px" aria-label="Email 每日摘要">
+      <div class="row items-center justify-between" style="gap: 12px">
+        <div>
+          <h2 class="section-title">Email 每日摘要</h2>
+          <div class="text-sub">今天到期、已逾期、今天排的時段，一封信看完。都沒有就不寄。</div>
+        </div>
+        <q-toggle v-model="mail.digest_enabled" color="primary" :label="mail.digest_enabled ? '已開啟' : '已關閉'" class="text-weight-bold" />
       </div>
-      <div class="row no-wrap" style="gap: 8px">
-        <q-input v-model="to" dense outlined type="email" class="col" placeholder="你的 Resend 帳號 Email" />
-        <q-btn no-caps unelevated class="fun-btn bg-surface" label="寄送測試信" :loading="sending" :disable="!to" @click="sendTest" />
+      <div class="mail-grid">
+        <q-input v-model="mail.email" outlined type="email" label="收件 Email" hint="只能寄到 Resend 帳號的 Email" />
+        <q-input v-model="mail.digest_time" outlined type="time" label="寄送時間" stack-label hint="台北時間（Asia/Taipei）" />
+      </div>
+      <div class="row items-center justify-between" style="gap: 12px">
+        <span class="text-sub" style="font-size: 13px">{{ lastResult ? `上次：${lastResult}` : '還沒寄過摘要' }}</span>
+        <div class="row" style="gap: 10px">
+          <q-btn no-caps unelevated class="fun-btn bg-surface" label="寄送測試信" :loading="sending" @click="sendTest" />
+          <q-btn no-caps unelevated class="fun-btn bg-accent-fun" label="儲存" :loading="savingMail" @click="saveMail" />
+        </div>
       </div>
     </section>
 
@@ -130,15 +140,53 @@ async function onRenameToggle (open) {
   if (!renameDirty() || await resolveUnsaved(saveRename)) renaming.value = null
 }
 
-/* 換頁時：還沒按新增的分類名稱、還沒儲存的改名 */
+/* Email 每日摘要 */
+const pickMail = s => ({ email: s.email || '', digest_enabled: !!s.digest_enabled, digest_time: s.digest_time || '08:00' })
+const mail = ref(pickMail({}))
+const savedMail = ref(JSON.stringify(mail.value))
+const lastResult = ref('')
+const savingMail = ref(false)
+const mailDirty = () => JSON.stringify(mail.value) !== savedMail.value
+
+function applySettings (s) {
+  mail.value = pickMail(s)
+  savedMail.value = JSON.stringify(mail.value)
+  lastResult.value = s.last_digest_result || ''
+}
+
+// 成功回傳 true；API 失敗會丟錯
+async function saveMail () {
+  savingMail.value = true
+  try {
+    applySettings((await api.put('/settings', mail.value)).data)
+    $q.notify({ type: 'positive', message: '已儲存每日摘要設定' })
+    return true
+  } finally { savingMail.value = false }
+}
+
+const sending = ref(false)
+async function sendTest () {
+  if (mailDirty()) {
+    $q.notify({ type: 'warning', message: '請先儲存，測試信會寄到已儲存的 Email' })
+    return
+  }
+  sending.value = true
+  try {
+    await api.post('/settings/test-email')
+    $q.notify({ type: 'positive', message: `已寄出測試信到 ${mail.value.email}，請收信` })
+  } finally { sending.value = false }
+}
+
+/* 換頁時：還沒按新增的分類名稱、還沒儲存的改名、還沒儲存的摘要設定 */
 useUnsavedGuard(
-  () => !!newName.value.trim() || renameDirty(),
+  () => !!newName.value.trim() || renameDirty() || mailDirty(),
   async () => {
     if (renameDirty() && !(await saveRename())) return false
     if (newName.value.trim()) await add()
+    if (mailDirty()) await saveMail()
     return true
   },
-  () => newName.value.trim() && !renameDirty()
+  () => newName.value.trim() && !renameDirty() && !mailDirty()
     ? `「${newName.value.trim()}」還沒按新增分類，要怎麼處理？`
     : undefined
 )
@@ -159,23 +207,15 @@ function remove (c) {
   })
 }
 
-const to = ref('')
-const sending = ref(false)
-async function sendTest () {
-  sending.value = true
-  try {
-    await api.post('/test-email', { to: to.value })
-    $q.notify({ type: 'positive', message: '已寄出，請收信' })
-  } finally { sending.value = false }
-}
-
-onMounted(() => Promise.all([cats.load(), tasks.load()]))
+onMounted(() => Promise.all([cats.load(), tasks.load(), api.get('/settings').then(r => applySettings(r.data))]))
 </script>
 
 <style scoped>
 .page { padding: 32px 40px 48px; }
 @media (max-width: 600px) { .page { padding: 20px 16px 32px; } }
 .section-title { margin: 0 0 4px; font-size: 20px; font-weight: 700; line-height: 1.4; }
+.mail-grid { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 16px; }
+.mail-grid > * { flex: 1 1 220px; }
 .cat-row { min-height: 52px; padding: 0 6px 0 10px; border-radius: 16px; border: 2px solid var(--line); background: var(--bg); }
 .swatch { width: 32px; height: 32px; flex-shrink: 0; border-radius: 10px; border: 2px solid #2A2633; cursor: pointer; padding: 0; }
 </style>

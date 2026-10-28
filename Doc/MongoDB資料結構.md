@@ -45,5 +45,14 @@ API JSON 欄位與 Mongo 欄位相同（snake_case）。不建索引（資料量
 - 所屬任務在回收桶時：時段保留但不回傳、不佔用時間；任務還原時，期間被其他時段佔用的會被刪除。
 - 任務永久刪除時一併刪除。
 
-## 尚未建立
-- `settings`（階段 4）：欄位見需求書第 6 節，實作時補上。
+## settings（階段 4）
+單筆設定，`_id` 固定為 `"app"`；沒有資料時後端回傳預設值。
+
+| 欄位 | 型別 | 說明 |
+|------|------|------|
+| _id | string | 固定 `app` |
+| email | string | 摘要收件 Email，可空字串；開啟摘要時必填 |
+| digest_enabled | boolean | 預設 false（填好 Email 再開） |
+| digest_time | string | `HH:mm`，台北時間，預設 `08:00` |
+| last_digest_date | string / null | 最後處理摘要的日期 `yyyy-MM-dd`（台北時間），同一天不重複處理 |
+| last_digest_result | string / null | 最後一次結果，例如「10/28 08:00 已寄出」「… 未寄送」「… 寄送失敗：…」，顯示在設定頁 |
