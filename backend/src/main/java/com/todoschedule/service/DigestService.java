@@ -11,10 +11,15 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.util.HtmlUtils;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.DayOfWeek;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalTime;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.TemporalAdjusters;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -50,8 +55,11 @@ public class DigestService {
         this.props = props;
     }
 
-    /** 摘要內容。line = 已排好的一行文字（時間＋標題）。 */
-    record Digest(ZonedDateTime day, List<String> dueToday, List<String> overdue, List<String> schedule) {
+    /**
+     * 摘要內容。line = 已排好的一行文字（時間＋標題）。
+     * weekMinutes = 本週已過去天數（週一～昨天）的工時；只是附加資訊，不影響要不要寄。
+     */
+    record Digest(ZonedDateTime day, List<String> dueToday, List<String> overdue, List<String> schedule, long weekMinutes) {
         boolean isEmpty() {
             return dueToday.isEmpty() && overdue.isEmpty() && schedule.isEmpty();
         }
@@ -105,14 +113,38 @@ public class DigestService {
                 .map(t -> fmt(t.deadline, MD_HM) + " " + t.title).toList();
 
         Map<String, Task> byId = tasks.stream().collect(Collectors.toMap(t -> t.id, Function.identity()));
-        List<String> schedule = blocks.list().stream()
-                .filter(b -> !b.startAt.isBefore(start) && b.startAt.isBefore(end) && byId.containsKey(b.taskId))
+        List<TimeBlock> all = blocks.list().stream().filter(b -> byId.containsKey(b.taskId)).toList();
+        List<String> schedule = all.stream()
+                .filter(b -> !b.startAt.isBefore(start) && b.startAt.isBefore(end))
                 .sorted(Comparator.comparing((TimeBlock b) -> b.startAt))
                 .map(b -> {
                     Task t = byId.get(b.taskId);
                     return fmt(b.startAt, HM) + "–" + fmt(b.endAt, HM) + " " + t.title + (t.done ? "（已完成）" : "");
                 }).toList();
-        return new Digest(day, dueToday, overdue, schedule);
+
+        // 只算本週已經過去的天數（週一～昨天），今天和之後的不算
+        Instant weekStart = weekStart(day).toInstant();
+        long weekMinutes = all.stream()
+                .filter(b -> !b.startAt.isBefore(weekStart) && b.startAt.isBefore(start))
+                .mapToLong(b -> Duration.between(b.startAt, b.endAt).toMinutes())
+                .sum();
+        return new Digest(day, dueToday, overdue, schedule, weekMinutes);
+    }
+
+    private static ZonedDateTime weekStart(ZonedDateTime day) {
+        return day.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+    }
+
+    /** 本週累計工時那一行；沒有工時（含週一）回傳 null（不列）。例：週三寄 → 本週累計工時 5.5h（10/26–10/27） */
+    String weekLine(Digest d) {
+        if (d.weekMinutes() == 0) return null;
+        String hours = BigDecimal.valueOf(d.weekMinutes()).divide(BigDecimal.valueOf(60), 1, RoundingMode.HALF_UP)
+                .stripTrailingZeros().toPlainString();
+        return "本週累計工時 %sh（%s–%s）".formatted(hours, md(weekStart(d.day())), md(d.day().minusDays(1)));
+    }
+
+    private static String md(ZonedDateTime d) {
+        return d.getMonthValue() + "/" + "%02d".formatted(d.getDayOfMonth());
     }
 
     String subject(Digest d) {
@@ -123,6 +155,8 @@ public class DigestService {
     private String html(Digest d) {
         StringBuilder sb = new StringBuilder("<div style=\"font-family:sans-serif;line-height:1.6\">");
         sb.append("<h2 style=\"margin:0 0 12px\">").append(dayLabel(d)).append(" 每日摘要</h2>");
+        String week = weekLine(d);
+        if (week != null) sb.append("<p style=\"margin:0 0 8px;font-weight:bold\">").append(week).append("</p>");
         section(sb, "今天到期", d.dueToday());
         section(sb, "已逾期", d.overdue());
         section(sb, "今天的時程", d.schedule());
@@ -139,6 +173,8 @@ public class DigestService {
 
     private String text(Digest d) {
         StringBuilder sb = new StringBuilder(dayLabel(d)).append(" 每日摘要\n");
+        String week = weekLine(d);
+        if (week != null) sb.append(week).append("\n");
         for (var e : List.of(Map.entry("今天到期", d.dueToday()), Map.entry("已逾期", d.overdue()), Map.entry("今天的時程", d.schedule()))) {
             if (e.getValue().isEmpty()) continue;
             sb.append("\n").append(e.getKey()).append("（").append(e.getValue().size()).append("）\n");
@@ -148,8 +184,7 @@ public class DigestService {
     }
 
     private static String dayLabel(Digest d) {
-        return d.day().getMonthValue() + "/" + "%02d".formatted(d.day().getDayOfMonth())
-                + "（" + WEEKDAYS.charAt(d.day().getDayOfWeek().getValue() - 1) + "）";
+        return md(d.day()) + "（" + WEEKDAYS.charAt(d.day().getDayOfWeek().getValue() - 1) + "）";
     }
 
     private static String fmt(Instant t, DateTimeFormatter f) {
