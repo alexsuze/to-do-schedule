@@ -18,6 +18,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -29,10 +33,11 @@ class UserServiceTest {
     private final UserRepository repo = mock(UserRepository.class);
     private final GoogleVerifier google = mock(GoogleVerifier.class);
     private final LegacyDataMigrator migrator = mock(LegacyDataMigrator.class);
-    private final AppProperties props = new AppProperties(null, null, null,
+    private final EmailService email = mock(EmailService.class);
+    private final AppProperties props = new AppProperties(null, null, "https://app.example.test/",
             new Auth("cid", "Boss@Example.test", "0123456789abcdef0123456789abcdef"), false);
     private final TokenService tokens = new TokenService(props);
-    private final UserService service = new UserService(repo, google, tokens, migrator, props);
+    private final UserService service = new UserService(repo, google, tokens, migrator, email, props);
     private final List<User> users = new ArrayList<>();
 
     UserServiceTest() {
@@ -72,6 +77,25 @@ class UserServiceTest {
         service.setStatus(boss, amy.id, User.DISABLED);
         assertNull(service.authenticate(token), "停用後舊通行證也失效");
         assertThrows(ResponseStatusException.class, () -> service.login("amy"));
+    }
+
+    @Test
+    void newApplicationEmailsAdminOnce() {
+        service.login("boss");
+        verify(email, never()).send(anyString(), anyString(), anyString(), anyString());
+
+        assertThrows(ResponseStatusException.class, () -> service.login("amy"));
+        assertThrows(ResponseStatusException.class, () -> service.login("amy"), "還在等待，重複登入不再寄");
+        verify(email, times(1)).send(eq("Boss@Example.test"), contains("amy@example.test"),
+                contains("https://app.example.test/#/admin"), contains("Amy"));
+    }
+
+    @Test
+    void emailFailureDoesNotBreakApplication() {
+        doThrow(new IllegalStateException("Resend 回應 403")).when(email).send(anyString(), anyString(), anyString(), anyString());
+        ResponseStatusException e = assertThrows(ResponseStatusException.class, () -> service.login("amy"));
+        assertTrue(e.getReason().contains("等待管理員核准"), "照常回應待核准，不是寄信錯誤");
+        assertEquals(User.PENDING, users.get(0).status);
     }
 
     @Test

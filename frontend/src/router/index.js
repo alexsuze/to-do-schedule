@@ -23,12 +23,18 @@ const router = createRouter({
   routes
 })
 
-// 沒登入只能看登入頁；已登入就不用再看登入頁；管理頁只給管理員（後端也會擋）
+// 沒登入只能看登入頁（記住原本要去哪，登入後帶回去，例如信裡的管理頁連結）；
+// 已登入就不用再看登入頁；管理頁只給管理員（後端也會擋）
 router.beforeEach(to => {
   const loggedIn = !!authToken()
-  if (!to.meta.public && !loggedIn) return { name: 'login' }
-  if (to.name === 'login' && loggedIn) return { name: 'tasks' }
+  if (!to.meta.public && !loggedIn) return { name: 'login', query: to.fullPath === '/' ? {} : { redirect: to.fullPath } }
+  if (to.name === 'login' && loggedIn) return safeRedirect(to.query.redirect)
   if (to.meta.admin && !loadSession().user?.admin) return { name: 'tasks' }
 })
+
+// 只接受站內路徑，避免被帶到奇怪的地方
+export function safeRedirect (path) {
+  return typeof path === 'string' && path.startsWith('/') && !path.startsWith('//') ? path : { name: 'tasks' }
+}
 
 export default router

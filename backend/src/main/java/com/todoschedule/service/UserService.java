@@ -4,34 +4,43 @@ import com.todoschedule.config.AppProperties;
 import com.todoschedule.model.User;
 import com.todoschedule.repository.UserRepository;
 import com.todoschedule.service.GoogleVerifier.GoogleUser;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.util.HtmlUtils;
 
 import java.time.Instant;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Set;
 
 /**
  * 登入、驗證通行證、管理員核准 / 停用（需求書 9.2、9.3）。
+ * 有人第一次申請時寄信通知管理員（需求書 9.3）。
  */
 @Service
 public class UserService {
 
     private static final Set<String> STATUSES = Set.of(User.PENDING, User.ACTIVE, User.DISABLED);
+    private static final DateTimeFormatter WHEN = DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm");
+    private static final Logger log = LoggerFactory.getLogger(UserService.class);
 
     private final UserRepository repo;
     private final GoogleVerifier google;
     private final TokenService tokens;
     private final LegacyDataMigrator migrator;
+    private final EmailService email;
     private final AppProperties props;
 
     public UserService(UserRepository repo, GoogleVerifier google, TokenService tokens,
-                       LegacyDataMigrator migrator, AppProperties props) {
+                       LegacyDataMigrator migrator, EmailService email, AppProperties props) {
         this.repo = repo;
         this.google = google;
         this.tokens = tokens;
         this.migrator = migrator;
+        this.email = email;
         this.props = props;
     }
 
@@ -41,7 +50,8 @@ public class UserService {
     public LoginResult login(String credential) {
         GoogleUser g = google.verify(credential);
         User u = repo.findByGoogleSub(g.sub()).orElseGet(User::new);
-        if (u.id == null) {
+        boolean isNew = u.id == null;
+        if (isNew) {
             u.googleSub = g.sub();
             u.createdAt = Instant.now();
         }
@@ -55,6 +65,7 @@ public class UserService {
         }
         repo.save(u);
         if (u.admin) migrator.claim(u.id);
+        if (isNew && User.PENDING.equals(u.status)) notifyAdmin(u);
 
         if (User.PENDING.equals(u.status)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "已送出申請，請等待管理員核准後再登入");
@@ -63,6 +74,28 @@ public class UserService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "此帳號已停用，請聯絡管理員");
         }
         return new LoginResult(tokens.issue(u.id), u);
+    }
+
+    /** 新申請寄信給管理員；寄不出去只記錄，不影響申請。 */
+    private void notifyAdmin(User u) {
+        String to = props.auth().adminEmail();
+        if (to == null || to.isBlank()) return;
+        String name = u.name == null || u.name.isBlank() ? u.email : u.name;
+        String link = props.frontendUrl() + "#/admin";
+        String when = u.createdAt.atZone(TimeBlockService.ZONE).format(WHEN);
+        String html = """
+                <div style="font-family:sans-serif;line-height:1.6">
+                <h2 style="margin:0 0 12px">有新的使用申請待審核</h2>
+                <p>名稱：%s<br>Email：%s<br>申請時間：%s（台北時間）</p>
+                <p><a href="%s" style="display:inline-block;padding:10px 18px;border-radius:12px;background:#FF8A4C;color:#2A2633;font-weight:bold;text-decoration:none">前往管理頁審核</a></p>
+                </div>""".formatted(HtmlUtils.htmlEscape(name), HtmlUtils.htmlEscape(u.email), when, HtmlUtils.htmlEscape(link));
+        String text = "有新的使用申請待審核\n名稱：%s\nEmail：%s\n申請時間：%s（台北時間）\n前往管理頁審核：%s"
+                .formatted(name, u.email, when, link);
+        try {
+            email.send(to.trim(), "[待審核] %s（%s）申請使用工作事項管理".formatted(name, u.email), html, text);
+        } catch (IllegalStateException e) {
+            log.warn("通知管理員新申請失敗", e);
+        }
     }
 
     /** 通行證有效且帳號使用中才回傳使用者，否則 null。 */

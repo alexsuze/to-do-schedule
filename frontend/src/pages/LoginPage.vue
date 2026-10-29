@@ -23,7 +23,8 @@
 
 <script setup>
 import { onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
+import { safeRedirect } from '../router'
 import { useQuasar } from 'quasar'
 import { useAuthStore } from '../stores/auth'
 
@@ -31,6 +32,7 @@ const GSI_SRC = 'https://accounts.google.com/gsi/client'
 
 const $q = useQuasar()
 const router = useRouter()
+const route = useRoute()
 const auth = useAuthStore()
 const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
 const buttonEl = ref(null)
@@ -56,7 +58,7 @@ async function onCredential ({ credential }) {
   message.value = ''
   try {
     await auth.login(credential)
-    router.replace({ name: 'tasks' })
+    router.replace(safeRedirect(route.query.redirect))
   } catch (e) {
     pending.value = e.response?.status === 403 && /核准/.test(e.response?.data?.detail || '')
     message.value = e.response?.data?.detail || e.message
