@@ -21,15 +21,16 @@ export const useCategoriesStore = defineStore('categories', {
     async load () {
       this.list = (await api.get('/categories')).data
     },
-    async create (name, color) {
-      const { data } = await api.post('/categories', { name, color })
+    async create (name, color, projectId) {
+      const { data } = await api.post('/categories', { name, color, project_id: projectId })
       this.list.push(data)
       saved(`已新增分類「${data.name}」`)
     },
+    // patch 可含 name / color / project_id（換專案＝移動分類，任務跟著移，呼叫端需重新載入任務）
     async update (c, patch) {
-      const { data } = await api.put(`/categories/${c.id}`, { name: c.name, color: c.color, ...patch })
+      const { data } = await api.put(`/categories/${c.id}`, { name: c.name, color: c.color, project_id: c.project_id, ...patch })
       this.list.splice(this.list.findIndex(x => x.id === c.id), 1, data)
-      saved(`已更新分類「${data.name}」`)
+      saved(patch.project_id && patch.project_id !== c.project_id ? `已將「${data.name}」移到其他專案` : `已更新分類「${data.name}」`)
     },
     // 後端會把該分類的任務改成未分類，呼叫端需重新載入任務
     async remove (id) {

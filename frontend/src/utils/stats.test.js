@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { periodRange, buckets, byCategory, donutGradient, taskCounts, inRange, totalMinutes, workedDays } from './stats.js'
+import { periodRange, buckets, byCategory, byProject, byTask, donutGradient, taskCounts, inRange, totalMinutes, workedDays } from './stats.js'
 
 const local = s => new Date(s)
 const block = (task, s, e) => ({ task_id: task, start_at: local(s).toISOString(), end_at: local(e).toISOString() })
@@ -64,4 +64,20 @@ test('task counts', () => {
     { done: true, completed_at: local('2026-10-01T12:00:00').toISOString() }
   ], from, to, now)
   assert.deepEqual(c, { open: 2, done: 2, overdue: 1, doneInPeriod: 1 })
+})
+
+test('hours by project and task ranking', () => {
+  const tasks = [
+    { id: 'a', title: '報表', project_id: 'p1', done: false },
+    { id: 'b', title: '簡報', project_id: null, done: true },
+    { id: 'c', title: '雜事', project_id: 'gone', done: false },
+    { id: 'd', title: '沒排', project_id: 'p1', done: false }
+  ]
+  const rows = byProject(blocks.slice(0, 3), tasks, [{ id: 'p1', name: '樂天', color: '#8FD3FF', archived: true }])
+  // 專案已刪除（gone）算進無專案；封存的專案名稱標註
+  assert.deepEqual(rows.map(r => [r.name, r.minutes]), [['樂天（已封存）', 90], ['無專案', 90]])
+
+  const ranking = byTask(blocks.slice(0, 3), tasks)
+  assert.deepEqual(ranking.map(r => [r.title, r.minutes]), [['報表', 90], ['簡報', 60], ['雜事', 30]])
+  assert.equal(ranking.find(r => r.title === '沒排'), undefined)
 })

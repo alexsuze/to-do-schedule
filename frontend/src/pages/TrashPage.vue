@@ -15,7 +15,7 @@
         <thead>
           <tr>
             <th scope="col">標題</th>
-            <th scope="col">分類</th>
+            <th scope="col">專案 / 分類</th>
             <th scope="col">刪除時間</th>
             <th scope="col">自動刪除</th>
             <th scope="col" class="text-right">操作</th>
@@ -24,7 +24,7 @@
         <tbody>
           <tr v-for="t in tasks.trash" :key="t.id">
             <td class="text-weight-bold">{{ t.title }}</td>
-            <td><span class="cat-chip" :style="{ background: cats.label(t.category_id).color }">{{ cats.label(t.category_id).name }}</span></td>
+            <td style="max-width: 240px"><TaskTag :task="t" /></td>
             <td class="text-sub nowrap">{{ formatDateTime(t.deleted_at) }}</td>
             <td><span class="left" :class="{ urgent: trashDaysLeft(t.deleted_at) <= 5 }">剩 {{ trashDaysLeft(t.deleted_at) }} 天</span></td>
             <td>
@@ -45,11 +45,14 @@ import { onMounted } from 'vue'
 import { useQuasar } from 'quasar'
 import { useTasksStore } from '../stores/tasks'
 import { useCategoriesStore } from '../stores/categories'
+import { useProjectsStore } from '../stores/projects'
+import TaskTag from '../components/TaskTag.vue'
 import { formatDateTime, trashDaysLeft, TRASH_KEEP_DAYS } from '../utils/task'
 
 const $q = useQuasar()
 const tasks = useTasksStore()
 const cats = useCategoriesStore()
+const projects = useProjectsStore()
 
 function confirm (title, message, ok) {
   return $q.dialog({
@@ -76,7 +79,7 @@ function emptyAll () {
   confirm('清空回收桶', `回收桶裡的 ${tasks.trash.length} 個任務會全部永久刪除，確定嗎？`, '全部刪除').onOk(() => tasks.purgeAll())
 }
 
-onMounted(() => Promise.all([tasks.loadTrash(), cats.load()]))
+onMounted(() => Promise.all([tasks.loadTrash(), cats.load(), projects.load()]))
 </script>
 
 <style scoped>

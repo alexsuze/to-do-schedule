@@ -24,16 +24,18 @@ public class TaskService {
 
     private final TaskRepository repo;
     private final CategoryService categories;
+    private final ProjectService projects;
     private final TimeBlockService blocks;
 
-    public TaskService(TaskRepository repo, CategoryService categories, TimeBlockService blocks) {
+    public TaskService(TaskRepository repo, CategoryService categories, ProjectService projects, TimeBlockService blocks) {
         this.repo = repo;
         this.categories = categories;
+        this.projects = projects;
         this.blocks = blocks;
     }
 
-    /** 新增與編輯共用，編輯為完整覆寫。 */
-    public record TaskRequest(String title, String description, String categoryId, Instant deadline,
+    /** 新增與編輯共用，編輯為完整覆寫。有分類時專案以分類的專案為準。 */
+    public record TaskRequest(String title, String description, String projectId, String categoryId, Instant deadline,
                               List<Subtask> subtasks, Boolean done) {}
 
     /** droppedBlocks：刪除期間被其他任務佔用、因此沒還原的時段數。 */
@@ -114,10 +116,18 @@ public class TaskService {
         String title = req.title() == null ? "" : req.title().trim();
         if (title.isEmpty() || title.length() > 100) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "標題需為 1～100 字");
         String cat = req.categoryId() == null || req.categoryId().isBlank() ? null : req.categoryId();
-        if (cat != null && !categories.exists(t.userId, cat)) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "分類不存在，請重新選擇");
+        String project = req.projectId() == null || req.projectId().isBlank() ? null : req.projectId();
+        if (cat != null) {
+            project = categories.find(t.userId, cat)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "分類不存在，請重新選擇"))
+                    .projectId;
+        } else if (project != null) {
+            project = projects.get(t.userId, project).id;
+        }
 
         t.title = title;
         t.description = req.description() == null ? "" : req.description();
+        t.projectId = project;
         t.categoryId = cat;
         t.deadline = req.deadline();
         t.subtasks = new ArrayList<>();

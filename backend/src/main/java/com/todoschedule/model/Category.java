@@ -5,7 +5,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 
 /**
- * 任務分類（統計頁依分類加總工時）。
+ * 任務分類，屬於某個專案（需求書 10.2）。
  */
 @Document("categories")
 public class Category {
@@ -15,6 +15,9 @@ public class Category {
     /** 擁有者（users 的 _id）。 */
     @Field("user_id")
     public String userId;
+    /** 所屬專案（必填）。 */
+    @Field("project_id")
+    public String projectId;
     public String name;
     /** 例如 #8FD3FF */
     public String color;

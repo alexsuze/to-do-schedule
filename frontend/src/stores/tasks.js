@@ -6,6 +6,7 @@ import { useBlocksStore } from './blocks'
 const toRequest = t => ({
   title: t.title,
   description: t.description,
+  project_id: t.project_id || null,
   category_id: t.category_id || null,
   deadline: t.deadline || null,
   subtasks: t.subtasks || [],

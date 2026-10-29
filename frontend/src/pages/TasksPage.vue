@@ -6,6 +6,7 @@
         <p class="text-sub q-ma-none" style="font-size: 15px">{{ openCount }} 個未完成，一張一張來就好</p>
       </div>
       <div class="row items-center" style="gap: 16px">
+        <ProjectFilter v-model="projectFilter" />
         <q-btn-toggle
           v-model="filter"
           class="fun-toggle"
@@ -32,7 +33,7 @@
         @click="open(t)" @keydown.enter="open(t)"
       >
         <div class="row items-center no-wrap">
-          <span class="cat-chip" :style="{ background: cats.label(t.category_id).color }">{{ cats.label(t.category_id).name }}</span>
+          <TaskTag :task="t" />
           <q-space />
           <q-btn
             round unelevated
@@ -60,7 +61,7 @@
       </article>
     </div>
 
-    <TaskDialog v-model="dialog" :task="editing" />
+    <TaskDialog v-model="dialog" :task="editing" :preset-project-id="presetProject" />
   </q-page>
 </template>
 
@@ -68,13 +69,17 @@
 import { computed, onMounted, ref } from 'vue'
 import { useTasksStore } from '../stores/tasks'
 import { useCategoriesStore } from '../stores/categories'
+import { useProjectsStore } from '../stores/projects'
 import { useBlocksStore } from '../stores/blocks'
-import { deadlineState, deadlineLabel, sortTasks, subtaskProgress } from '../utils/task'
+import { deadlineState, deadlineLabel, matchProject, sortTasks, subtaskProgress } from '../utils/task'
 import { formatHours } from '../utils/timeline'
 import TaskDialog from '../components/TaskDialog.vue'
+import TaskTag from '../components/TaskTag.vue'
+import ProjectFilter from '../components/ProjectFilter.vue'
 
 const tasks = useTasksStore()
 const cats = useCategoriesStore()
+const projects = useProjectsStore()
 const blocks = useBlocksStore()
 
 const FILTERS = [
@@ -84,9 +89,12 @@ const FILTERS = [
 ]
 const ROT = ['-0.6deg', '0.5deg', '0deg'] // 卡片微微歪斜，童趣感
 const filter = ref('open')
+const projectFilter = ref('all')
+// 篩選單一專案時，新增任務預設帶入該專案
+const presetProject = computed(() => ['all', 'none'].includes(projectFilter.value) ? null : projectFilter.value)
 
 const shown = computed(() => sortTasks(tasks.tasks.filter(t =>
-  filter.value === 'all' || (filter.value === 'done') === t.done)))
+  (filter.value === 'all' || (filter.value === 'done') === t.done) && matchProject(t, projectFilter.value))))
 const openCount = computed(() => tasks.tasks.filter(t => !t.done).length)
 
 function pct (t) {
@@ -101,7 +109,7 @@ function open (t) {
   dialog.value = true
 }
 
-onMounted(() => Promise.all([tasks.load(), cats.load(), blocks.load()]))
+onMounted(() => Promise.all([tasks.load(), cats.load(), projects.load(), blocks.load()]))
 </script>
 
 <style scoped>

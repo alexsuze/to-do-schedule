@@ -24,6 +24,9 @@ public class Task {
     public String userId;
     public String title;
     public String description;
+    /** 所屬專案，null＝無專案；有分類時必等於分類的專案。 */
+    @Field("project_id")
+    public String projectId;
     @Field("category_id")
     public String categoryId;
     public Instant deadline;

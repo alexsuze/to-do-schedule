@@ -8,4 +8,6 @@ import java.util.List;
 public interface CategoryRepository extends MongoRepository<Category, String> {
 
     List<Category> findByUserIdOrderByOrderAsc(String userId);
+
+    List<Category> findByProjectId(String projectId);
 }

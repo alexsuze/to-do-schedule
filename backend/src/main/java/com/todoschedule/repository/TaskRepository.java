@@ -12,6 +12,8 @@ public interface TaskRepository extends MongoRepository<Task, String> {
 
     List<Task> findByCategoryId(String categoryId);
 
+    List<Task> findByProjectId(String projectId);
+
     /* 回收桶 */
     List<Task> findByUserIdAndDeletedAtIsNotNullOrderByDeletedAtDesc(String userId);
 

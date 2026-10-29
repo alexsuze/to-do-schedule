@@ -11,6 +11,7 @@ API JSON 欄位與 Mongo 欄位相同（snake_case）。
 |------|------|------|
 | _id | ObjectId | |
 | user_id | string | 擁有者（users 的 _id） |
+| project_id | string / null | 所屬專案；null＝無專案。有 category_id 時必等於該分類的專案（v1.2） |
 | title | string | 1～100 字 |
 | description | string | 可空字串 |
 | category_id | string / null | categories 的 _id（hex 字串）；null = 未分類 |
@@ -28,11 +29,28 @@ API JSON 欄位與 Mongo 欄位相同（snake_case）。
 |------|------|------|
 | _id | ObjectId | |
 | user_id | string | 擁有者 |
+| project_id | string | 所屬專案（必填，v1.2） |
 | name | string | 1～30 字 |
 | color | string | `#RRGGBB`（存大寫） |
 | order | int | 顯示順序，越小越前面 |
 
-刪除分類為直接刪除，該分類的任務（含回收桶中的）`category_id` 改為 null。
+刪除分類為直接刪除，該分類的任務（含回收桶中的）`category_id` 改為 null（`project_id` 不變）。
+分類換專案（移動）時，該分類所有任務的 `project_id` 一併改為新專案。
+
+## projects（v1.2）
+專案：專案 → 分類 → 任務，工時以專案為統計主體。
+
+| 欄位 | 型別 | 說明 |
+|------|------|------|
+| _id | ObjectId | |
+| user_id | string | 擁有者 |
+| name | string | 1～30 字 |
+| color | string | `#RRGGBB`（存大寫）；時程表時段用此顏色 |
+| order | int | 顯示順序 |
+| archived | boolean | 封存：選單不出現，工時與統計保留 |
+
+- 刪除專案：底下分類一併刪除；任務保留並改為 `project_id = null`、`category_id = null`。
+- 舊資料搬移（`ProjectMigrator`）：沒有 `project_id` 的分類，依使用者建立專案「一般」並掛上，其任務 `project_id` 同步設定；伺服器啟動後背景執行一次、管理員登入時也會執行，可重複執行。
 
 ## time_blocks（階段 2）
 時程表上的時段，工時 = end_at - start_at。

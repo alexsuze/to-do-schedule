@@ -1,6 +1,6 @@
 // 統計頁的計算（需求書第 4 節）。全部用前端已載入的任務 / 時段 / 分類算，不另開 API。
 import { addDays, minutesOf, weekStart } from './timeline.js'
-import { UNCATEGORIZED_COLOR } from './task.js'
+import { NO_PROJECT_COLOR, UNCATEGORIZED_COLOR } from './task.js'
 
 const WEEKDAYS = '日一二三四五六'
 const DAY_BUCKET_MAX = 31 // 超過這麼多天改成每週一根長條
@@ -68,6 +68,30 @@ export function byCategory (blocks, tasks, categories) {
   return [...categories.map(c => ({ id: c.id, name: c.name, color: c.color })), { id: null, name: '未分類', color: UNCATEGORIZED_COLOR }]
     .map(c => ({ ...c, minutes: minutes[c.id] || 0 }))
     .filter(c => c.minutes > 0)
+    .sort((a, b) => b.minutes - a.minutes)
+}
+
+// 各專案工時，多的在前；沒專案或專案已刪除的算「無專案」
+export function byProject (blocks, tasks, projects) {
+  const taskProject = Object.fromEntries(tasks.map(t => [t.id, t.project_id]))
+  const minutes = {}
+  for (const b of blocks) {
+    const id = projects.some(p => p.id === taskProject[b.task_id]) ? taskProject[b.task_id] : null
+    minutes[id] = (minutes[id] || 0) + minutesOf(b)
+  }
+  return [...projects.map(p => ({ id: p.id, name: p.archived ? `${p.name}（已封存）` : p.name, color: p.color })), { id: null, name: '無專案', color: NO_PROJECT_COLOR }]
+    .map(p => ({ ...p, minutes: minutes[p.id] || 0 }))
+    .filter(p => p.minutes > 0)
+    .sort((a, b) => b.minutes - a.minutes)
+}
+
+// 各任務工時排行（只列有工時的），多的在前
+export function byTask (blocks, tasks) {
+  const minutes = {}
+  for (const b of blocks) minutes[b.task_id] = (minutes[b.task_id] || 0) + minutesOf(b)
+  return tasks
+    .filter(t => minutes[t.id])
+    .map(t => ({ id: t.id, title: t.title, category_id: t.category_id, done: t.done, minutes: minutes[t.id] }))
     .sort((a, b) => b.minutes - a.minutes)
 }
 

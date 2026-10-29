@@ -12,6 +12,7 @@ export const PALETTE = [
   '#FF9F9F', '#C5E88A', '#7FD8C9', '#A9B8FF', '#F5A3D8', '#FFB570', '#E8D3B0', '#B9D7A8'
 ]
 export const UNCATEGORIZED_COLOR = '#E2DCEB'
+export const NO_PROJECT_COLOR = '#D9D4E0' // 無專案：灰色
 
 // 'overdue' | 'soon'（24 小時內）| ''；已完成不提示
 export function deadlineState (task, now = Date.now()) {
@@ -71,4 +72,11 @@ export function localToIso (v) {
   if (!v || v.length < 16) return null
   const d = new Date(v.replace(' ', 'T'))
   return isNaN(d) ? null : d.toISOString()
+}
+
+// 專案篩選：'all' 全部、'none' 無專案、其他為專案 id
+export function matchProject (task, filter) {
+  if (filter === 'all') return true
+  if (filter === 'none') return !task.project_id
+  return task.project_id === filter
 }

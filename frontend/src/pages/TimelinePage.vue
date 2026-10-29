@@ -17,6 +17,7 @@
     <div class="body">
       <aside class="pool fun-card" aria-label="未完成任務">
         <span class="text-weight-bold" style="font-size: 16px">未完成任務</span>
+        <ProjectFilter v-model="projectFilter" />
         <q-input v-model="search" dense outlined placeholder="搜尋任務" clearable>
           <template #prepend><q-icon name="search" /></template>
         </q-input>
@@ -27,7 +28,7 @@
           @contextmenu.prevent
         >
           <q-icon name="drag_indicator" class="text-sub" size="16px" />
-          <span class="cat-dot" :style="{ background: cats.label(t.category_id).color }" />
+          <span class="cat-dot" :style="{ background: projects.label(t.project_id).color }" />
           <span class="ellipsis col" style="font-size: 14px">{{ t.title }}</span>
           <span class="font-round text-sub" style="font-size: 13px">{{ formatHours(blocks.minutesByTask[t.id] || 0) }}</span>
         </div>
@@ -64,7 +65,7 @@
                 v-for="b in dayBlocks[i]" :key="b.id"
                 class="block" :class="{ done: taskOf(b)?.done, moving: drag?.block?.id === b.id }"
                 :style="blockStyle(b)"
-                :title="`${taskOf(b)?.title}（${blockRange(b)}）`"
+                :title="`${projects.label(taskOf(b)?.project_id).name}｜${taskOf(b)?.title}（${blockRange(b)}）`"
                 @pointerdown="onPointerDown($event, { block: b, taskId: b.task_id, title: taskOf(b)?.title, len: lenOf(b), grab: grabSlot($event) })"
                 @contextmenu.prevent
                 @click="openTask(b)"
@@ -101,14 +102,16 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import { useTasksStore } from '../stores/tasks'
 import { useCategoriesStore } from '../stores/categories'
+import { useProjectsStore } from '../stores/projects'
 import { useBlocksStore } from '../stores/blocks'
-import { sortTasks } from '../utils/task'
+import { matchProject, sortTasks } from '../utils/task'
 import {
   DEFAULT_RANGE, EXPAND_HOURS, SLOTS_PER_DAY, addDays, blockSlots, formatHours, formatSlot,
   minutesOf, overlaps, sameDay, slotOf, slotTime, visibleRange, weekStart
 } from '../utils/timeline'
 import { dateKey, loadYear } from '../utils/holidays'
 import TaskDialog from '../components/TaskDialog.vue'
+import ProjectFilter from '../components/ProjectFilter.vue'
 
 const ROW = 28 // 一格 30 分鐘的高度（px）
 const WD = ['一', '二', '三', '四', '五', '六', '日']
@@ -116,6 +119,7 @@ const RANGE_KEY = 'timelineRange'
 
 const $q = useQuasar()
 const tasks = useTasksStore()
+const projects = useProjectsStore()
 const cats = useCategoriesStore()
 const blocks = useBlocksStore()
 
@@ -195,7 +199,7 @@ function blockStyle (b) {
   return {
     top: `${(s - view.value.start * 2) * ROW + 1}px`,
     height: `${lenOf(b) * ROW - 3}px`,
-    background: cats.label(taskOf(b)?.category_id).color
+    background: projects.label(taskOf(b)?.project_id).color // 時段顏色依專案（需求書 10.4）
   }
 }
 
@@ -377,14 +381,15 @@ function openTask (b) {
 
 /* 左側：未完成任務 */
 const search = ref('')
+const projectFilter = ref('all')
 const pool = computed(() => {
   const q = (search.value || '').trim().toLowerCase()
-  return sortTasks(tasks.tasks.filter(t => !t.done && (!q || t.title.toLowerCase().includes(q))))
+  return sortTasks(tasks.tasks.filter(t => !t.done && matchProject(t, projectFilter.value) && (!q || t.title.toLowerCase().includes(q))))
 })
 
 onMounted(() => {
   timer = setInterval(() => { now.value = new Date() }, 60 * 1000)
-  return Promise.all([tasks.load(), cats.load(), blocks.load()])
+  return Promise.all([tasks.load(), cats.load(), projects.load(), blocks.load()])
 })
 onUnmounted(() => {
   clearInterval(timer)

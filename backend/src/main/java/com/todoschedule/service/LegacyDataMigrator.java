@@ -20,15 +20,18 @@ public class LegacyDataMigrator {
     private static final String LEGACY_SETTINGS_ID = "app";
 
     private final MongoTemplate mongo;
+    private final ProjectMigrator projects;
 
-    public LegacyDataMigrator(MongoTemplate mongo) {
+    public LegacyDataMigrator(MongoTemplate mongo, ProjectMigrator projects) {
         this.mongo = mongo;
+        this.projects = projects;
     }
 
     public void claim(String adminId) {
         for (String collection : List.of("tasks", "categories", "time_blocks")) {
             mongo.updateMulti(query(where("user_id").exists(false)), Update.update("user_id", adminId), collection);
         }
+        projects.migrate(adminId); // 剛歸屬的分類也要掛上專案
         Settings legacy = mongo.findById(LEGACY_SETTINGS_ID, Settings.class);
         if (legacy == null) return;
         if (mongo.findById(adminId, Settings.class) == null) {

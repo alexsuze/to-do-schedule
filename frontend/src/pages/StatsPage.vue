@@ -3,9 +3,23 @@
     <div class="row items-end justify-between q-mb-lg" style="gap: 16px">
       <div>
         <h1 class="page-title">統計</h1>
-        <p class="text-sub q-ma-none" style="font-size: 15px">{{ rangeLabel }} · 看看這段時間把時間花在哪裡</p>
+        <p class="text-sub q-ma-none" style="font-size: 15px">{{ rangeLabel }} · {{ scopeLabel }} · 看看這段時間把時間花在哪裡</p>
       </div>
       <div class="row items-center" style="gap: 10px">
+        <q-select
+          v-model="scope" :options="scopeOptions" emit-value map-options dense outlined
+          aria-label="統計範圍" style="min-width: 180px"
+        >
+          <template #option="{ itemProps, opt }">
+            <q-item v-bind="itemProps">
+              <q-item-section avatar><span class="cat-dot" :style="{ background: opt.color }" /></q-item-section>
+              <q-item-section>{{ opt.label }}</q-item-section>
+            </q-item>
+          </template>
+          <template #selected-item="{ opt }">
+            <span class="row items-center no-wrap" style="gap: 8px"><span class="cat-dot" :style="{ background: opt.color }" />{{ opt.label }}</span>
+          </template>
+        </q-select>
         <q-btn-toggle
           v-model="period"
           class="fun-toggle"
@@ -75,8 +89,8 @@
         </div>
       </section>
 
-      <section class="fun-card chart-card" style="flex: 2 1 320px" aria-label="分類工時">
-        <h2 class="section-title">分類工時</h2>
+      <section class="fun-card chart-card" style="flex: 2 1 320px" :aria-label="pieTitle">
+        <h2 class="section-title">{{ pieTitle }}</h2>
         <div v-if="!cats.length" class="text-sub q-py-xl text-center">這段期間還沒有排工時，到時程表排一些吧！</div>
         <div v-else class="row items-center" style="gap: 24px">
           <div class="donut" role="img" :aria-label="catsAria" :style="{ background: donutGradient(cats, 'var(--surface)') }">
@@ -96,6 +110,42 @@
         </div>
       </section>
     </div>
+
+    <!-- 單一專案（或無專案）：各任務工時排行 -->
+    <section v-if="scope !== 'all'" class="fun-card chart-card q-mt-lg" aria-label="各任務工時">
+      <div class="row justify-between items-baseline">
+        <h2 class="section-title">各任務工時</h2>
+        <span class="text-sub" style="font-size: 13px">只列這段期間有排工時的任務</span>
+      </div>
+      <div v-if="!ranking.length" class="text-sub q-py-lg text-center">這段期間沒有任務排工時</div>
+      <div v-else class="table-box">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">任務</th>
+              <th scope="col">分類</th>
+              <th scope="col" class="text-right">工時</th>
+              <th scope="col" class="text-right">佔比</th>
+              <th scope="col">狀態</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="r in ranking" :key="r.id">
+              <td class="text-weight-bold">{{ r.title }}</td>
+              <td><span class="cat-chip" :style="{ background: categories.label(r.category_id).color }">{{ categories.label(r.category_id).name }}</span></td>
+              <td class="text-right font-round text-weight-bold">{{ formatHours(r.minutes) }}</td>
+              <td class="text-right">
+                <div class="row items-center justify-end no-wrap" style="gap: 8px">
+                  <div class="mini-bar" aria-hidden="true"><div :style="{ width: pct(r.minutes) }" /></div>
+                  <span class="font-round text-sub" style="min-width: 36px">{{ pct(r.minutes) }}</span>
+                </div>
+              </td>
+              <td><span class="state" :class="{ done: r.done }">{{ r.done ? '已完成' : '進行中' }}</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
   </q-page>
 </template>
 
@@ -103,12 +153,15 @@
 import { computed, onMounted, ref } from 'vue'
 import { useTasksStore } from '../stores/tasks'
 import { useCategoriesStore } from '../stores/categories'
+import { useProjectsStore } from '../stores/projects'
 import { useBlocksStore } from '../stores/blocks'
 import { formatHours, sameDay, weekStart } from '../utils/timeline'
-import { buckets, byCategory, donutGradient, inRange, periodRange, taskCounts, toDateInput, totalMinutes, workedDays } from '../utils/stats'
+import { buckets, byCategory, byProject, byTask, donutGradient, inRange, periodRange, taskCounts, toDateInput, totalMinutes, workedDays } from '../utils/stats'
+import { matchProject, NO_PROJECT_COLOR } from '../utils/task'
 
 const tasks = useTasksStore()
 const categories = useCategoriesStore()
+const projects = useProjectsStore()
 const blocks = useBlocksStore()
 
 const PERIODS = [
@@ -128,11 +181,29 @@ const range = computed(() => {
 const md = d => `${d.getMonth() + 1}/${String(d.getDate()).padStart(2, '0')}`
 const rangeLabel = computed(() => `${md(range.value.from)} – ${md(new Date(range.value.to - 1))}`)
 
-const periodBlocks = computed(() => inRange(blocks.list, range.value.from, range.value.to))
+/* 統計範圍：全部專案 / 單一專案（含已封存）/ 無專案；值為 'all' | 'none' | 專案 id */
+const scope = ref('all')
+const scopeOptions = computed(() => [
+  { label: '全部專案', value: 'all', color: 'transparent' },
+  ...projects.list.map(p => ({ label: p.archived ? `${p.name}（已封存）` : p.name, value: p.id, color: p.color })),
+  { label: '無專案', value: 'none', color: NO_PROJECT_COLOR }
+])
+const scopeLabel = computed(() => scopeOptions.value.find(o => o.value === scope.value)?.label || '全部專案')
+const scopeTasks = computed(() => tasks.tasks.filter(t => matchProject(t, scope.value)))
+
+const periodBlocks = computed(() => {
+  const inScope = new Set(scopeTasks.value.map(t => t.id))
+  return inRange(blocks.list, range.value.from, range.value.to).filter(b => scope.value === 'all' || inScope.has(b.task_id))
+})
 const total = computed(() => totalMinutes(periodBlocks.value))
 const worked = computed(() => workedDays(periodBlocks.value)) // 平均只除以有排工時的天數
-const counts = computed(() => taskCounts(tasks.tasks, range.value.from, range.value.to))
-const cats = computed(() => byCategory(periodBlocks.value, tasks.tasks, categories.list))
+const counts = computed(() => taskCounts(scopeTasks.value, range.value.from, range.value.to))
+// 全部專案：各專案佔比；單一專案：專案內各分類佔比
+const pieTitle = computed(() => scope.value === 'all' ? '各專案工時' : '各分類工時')
+const cats = computed(() => scope.value === 'all'
+  ? byProject(periodBlocks.value, tasks.tasks, projects.list)
+  : byCategory(periodBlocks.value, tasks.tasks, categories.list.filter(c => c.project_id === scope.value)))
+const ranking = computed(() => byTask(periodBlocks.value, scopeTasks.value))
 
 /* 長條圖 */
 const bars = computed(() => buckets(periodBlocks.value, range.value.from, range.value.to))
@@ -152,7 +223,7 @@ const pct = m => total.value ? `${Math.round(m / total.value * 100)}%` : ''
 const barsAria = computed(() => bars.value.list.map(b => `${b.title} ${formatHours(b.minutes)}`).join('、'))
 const catsAria = computed(() => cats.value.map(c => `${c.name} ${formatHours(c.minutes)}`).join('、'))
 
-onMounted(() => Promise.all([tasks.load(), categories.load(), blocks.load()]))
+onMounted(() => Promise.all([tasks.load(), categories.load(), projects.load(), blocks.load()]))
 </script>
 
 <style scoped>
@@ -203,4 +274,12 @@ onMounted(() => Promise.all([tasks.load(), categories.load(), blocks.load()]))
 .legend li { display: flex; align-items: center; gap: 10px; font-size: 15px; }
 .swatch { width: 16px; height: 16px; flex-shrink: 0; border-radius: 6px; border: 2px solid #2A2633; }
 .pct { min-width: 40px; text-align: right; font-size: 13px; }
+.table-box { overflow-x: auto; }
+table { width: 100%; min-width: 620px; border-collapse: collapse; font-size: 15px; }
+th { text-align: left; padding: 12px; color: var(--sub); font-size: 13px; }
+td { padding: 10px 12px; border-top: 2px dashed var(--grid); }
+.mini-bar { width: 80px; height: 10px; border-radius: 999px; border: 2px solid var(--line); background: var(--soft); overflow: hidden; }
+.mini-bar > div { height: 100%; background: var(--accent); }
+.state { display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: 13px; background: var(--soft); white-space: nowrap; }
+.state.done { background: var(--mint); color: var(--on-color); }
 </style>

@@ -9,10 +9,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.regex.Pattern;
 
 /**
- * 分類管理（需求書 2.3）。刪除分類時任務改為未分類，不刪任務。只能操作自己的分類。
+ * 分類管理（需求書 2.3、10.2）。分類屬於某個專案，可移到其他專案（任務跟著移）。
+ * 刪除分類時任務改為未分類（專案不變），不刪任務。只能操作自己的分類。
  */
 @Service
 public class CategoryService {
@@ -21,13 +23,16 @@ public class CategoryService {
 
     private final CategoryRepository repo;
     private final TaskRepository taskRepo;
+    private final ProjectService projects;
 
-    public CategoryService(CategoryRepository repo, TaskRepository taskRepo) {
+    public CategoryService(CategoryRepository repo, TaskRepository taskRepo, ProjectService projects) {
         this.repo = repo;
         this.taskRepo = taskRepo;
+        this.projects = projects;
     }
 
-    public record CategoryRequest(String name, String color) {}
+    /** projectId：新增時必填；編輯時給不同的專案即為「移到該專案」，null 表示不變。 */
+    public record CategoryRequest(String name, String color, String projectId) {}
 
     public List<Category> list(String userId) {
         return repo.findByUserIdOrderByOrderAsc(userId);
@@ -36,6 +41,7 @@ public class CategoryService {
     public Category create(String userId, CategoryRequest req) {
         Category c = new Category();
         c.userId = userId;
+        c.projectId = projects.get(userId, req.projectId()).id;
         apply(c, req);
         c.order = list(userId).stream().mapToInt(x -> x.order + 1).max().orElse(0);
         return repo.save(c);
@@ -44,6 +50,13 @@ public class CategoryService {
     public Category update(String userId, String id, CategoryRequest req) {
         Category c = get(userId, id);
         apply(c, req);
+        if (req.projectId() != null && !req.projectId().equals(c.projectId)) {
+            c.projectId = projects.get(userId, req.projectId()).id;
+            // 任務跟著分類移到新專案
+            List<Task> tasks = taskRepo.findByCategoryId(c.id);
+            tasks.forEach(t -> t.projectId = c.projectId);
+            taskRepo.saveAll(tasks);
+        }
         return repo.save(c);
     }
 
@@ -66,13 +79,14 @@ public class CategoryService {
         return list(userId);
     }
 
-    public boolean exists(String userId, String id) {
-        return repo.findById(id).filter(c -> userId.equals(c.userId)).isPresent();
+    /** 自己的分類；別人的或不存在回傳 empty。 */
+    public Optional<Category> find(String userId, String id) {
+        return repo.findById(id).filter(c -> userId.equals(c.userId));
     }
 
     /** 別人的分類一律當作找不到。 */
     private Category get(String userId, String id) {
-        return repo.findById(id).filter(c -> userId.equals(c.userId))
+        return find(userId, id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "找不到此分類"));
     }
 
