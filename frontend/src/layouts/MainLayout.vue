@@ -96,10 +96,13 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { setDark } from '../utils/theme'
 import { useAuthStore } from '../stores/auth'
+import { useBlocksStore } from '../stores/blocks'
+import { startReminder } from '../services/reminder'
 
 const MINI_KEY = 'sidebarMini'
 
@@ -119,6 +122,12 @@ function toggleMini () {
 }
 
 onMounted(() => auth.loadPending())
+
+// 工作開始前提醒：點通知回到時程表；這台電腦改了時段就重新讀取
+const router = useRouter()
+const blocks = useBlocksStore()
+const stopReminder = startReminder(() => router.push({ name: 'timeline' }), () => blocks.list)
+onUnmounted(stopReminder)
 
 const NAV = [
   { name: 'tasks', label: '任務', icon: 'task_alt' },

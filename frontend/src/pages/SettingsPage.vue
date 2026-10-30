@@ -2,7 +2,7 @@
   <q-page class="page column q-gutter-y-lg" style="max-width: 860px">
     <div>
       <h1 class="page-title">設定</h1>
-      <p class="text-sub q-ma-none" style="font-size: 15px">外觀、專案與分類、每日摘要信</p>
+      <p class="text-sub q-ma-none" style="font-size: 15px">外觀、提醒、專案與分類、每日摘要信</p>
     </div>
 
     <section class="fun-card q-pa-lg row items-center justify-between" style="gap: 16px" aria-label="外觀">
@@ -19,6 +19,28 @@
         aria-label="外觀模式"
         @update:model-value="setDark"
       />
+    </section>
+
+    <section class="fun-card q-pa-lg" style="display: flex; flex-direction: column; gap: 16px" aria-label="工作開始前提醒">
+      <div class="row items-center justify-between" style="gap: 12px">
+        <div>
+          <h2 class="section-title">工作開始前提醒</h2>
+          <div class="text-sub">時程表排的工作快開始時跳出 Windows 通知。網頁要開著（可以縮小）才會提醒，設定記在這台電腦的瀏覽器。</div>
+        </div>
+        <q-toggle :model-value="reminder.enabled" :disable="!supported" color="primary" :label="reminder.enabled ? '已開啟' : '已關閉'" class="text-weight-bold" @update:model-value="toggleReminder" />
+      </div>
+      <div v-if="!supported" class="notice bg-soft">
+        <q-icon name="info_outline" size="20px" />
+        <span>這個瀏覽器不支援通知。</span>
+      </div>
+      <div v-else-if="permission === 'denied'" class="notice bg-butter">
+        <q-icon name="notifications_off" size="20px" />
+        <span>通知被瀏覽器封鎖了。請點網址列左邊的圖示，把「通知」改成「允許」後重新整理。</span>
+      </div>
+      <div v-if="reminder.enabled" class="row items-center justify-between" style="gap: 12px">
+        <q-select v-model="reminder.lead" :options="LEAD_OPTIONS" emit-value map-options outlined dense label="提前多久提醒" style="min-width: 180px" />
+        <q-btn no-caps unelevated class="fun-btn bg-surface" label="測試通知" @click="testReminder" />
+      </div>
     </section>
 
     <section class="fun-card q-pa-lg column q-gutter-y-md" aria-label="專案管理">
@@ -142,11 +164,24 @@ import { PALETTE } from '../utils/task'
 import { setDark } from '../utils/theme'
 import { resolveUnsaved, useUnsavedGuard } from '../utils/unsaved'
 import ColorPicker from '../components/ColorPicker.vue'
+import { askPermission, permission, reminder, supported } from '../services/reminder'
+import { reminderTitle } from '../utils/reminder'
 
 const $q = useQuasar()
 const cats = useCategoriesStore()
 const projects = useProjectsStore()
 const tasks = useTasksStore()
+
+/* 工作開始前提醒：開啟時先向瀏覽器要通知權限 */
+const LEAD_OPTIONS = [1, 3, 5, 10, 15, 30].map(m => ({ label: `${m} 分鐘前`, value: m }))
+async function toggleReminder (on) {
+  if (on && await askPermission() !== 'granted') return
+  reminder.value.enabled = on
+}
+function testReminder () {
+  if (permission.value !== 'granted') return
+  new Notification(reminderTitle('任務名稱', '專案名稱'), { body: '這是測試通知，正式提醒會顯示時段' })
+}
 
 const countOf = id => tasks.tasks.filter(t => t.category_id === id).length
 const projectCount = id => tasks.tasks.filter(t => t.project_id === id).length

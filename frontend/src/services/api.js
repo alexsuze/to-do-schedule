@@ -22,7 +22,7 @@ api.interceptors.response.use(null, (e) => {
     clearSession()
     Notify.create({ type: 'warning', message: e.response.data?.detail || '請重新登入' })
     window.location.hash = '#/login'
-  } else if (!isLogin) {
+  } else if (!isLogin && !e.config?.silent) { // silent：背景讀取失敗不打擾
     Notify.create({ type: 'negative', message: e.response?.data?.detail || e.message })
   }
   return Promise.reject(e)
