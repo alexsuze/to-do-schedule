@@ -8,6 +8,7 @@ const SENT_KEY = 'remindedBlocks'
 const CHECK_MS = 30 * 1000
 const REFRESH_MS = 5 * 60 * 1000
 
+export const ICON = `${import.meta.env.BASE_URL}icon-192.png`
 export const supported = typeof window !== 'undefined' && 'Notification' in window
 
 function loadSettings () {
@@ -53,7 +54,7 @@ function check (onOpen) {
     const project = data.projects.find(p => p.id === task.project_id)
     const fmt = s => new Date(s).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', hour12: false })
     // tag 相同時多個分頁同時跳也只會留一則
-    const n = new Notification(reminderTitle(task.title, project?.name), { body: `${fmt(b.start_at)} – ${fmt(b.end_at)}`, tag: key })
+    const n = new Notification(reminderTitle(task.title, project?.name), { body: `${fmt(b.start_at)} – ${fmt(b.end_at)}`, icon: ICON, tag: key })
     n.onclick = () => { window.focus(); onOpen(); n.close() }
   }
 }

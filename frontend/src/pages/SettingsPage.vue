@@ -164,7 +164,7 @@ import { PALETTE } from '../utils/task'
 import { setDark } from '../utils/theme'
 import { resolveUnsaved, useUnsavedGuard } from '../utils/unsaved'
 import ColorPicker from '../components/ColorPicker.vue'
-import { askPermission, permission, reminder, supported } from '../services/reminder'
+import { ICON, askPermission, permission, reminder, supported } from '../services/reminder'
 import { reminderTitle } from '../utils/reminder'
 
 const $q = useQuasar()
@@ -180,7 +180,7 @@ async function toggleReminder (on) {
 }
 function testReminder () {
   if (permission.value !== 'granted') return
-  new Notification(reminderTitle('任務名稱', '專案名稱'), { body: '這是測試通知，正式提醒會顯示時段' })
+  new Notification(reminderTitle('任務名稱', '專案名稱'), { body: '這是測試通知，正式提醒會顯示時段', icon: ICON })
 }
 
 const countOf = id => tasks.tasks.filter(t => t.category_id === id).length
