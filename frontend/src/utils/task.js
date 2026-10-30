@@ -45,6 +45,13 @@ export function deadlineLabel (task, now = Date.now()) {
   return formatDateTime(task.deadline)
 }
 
+// 開始時間在 end 之前（或沒填＝已開始）；時程表用週末判斷這週要不要列出
+export const startedBefore = (task, end) => !task.start_at || new Date(task.start_at) < end
+
+// 還沒開始的任務卡標籤，例：11/05（四）09:00 開始；已開始回傳空字串
+export const startLabel = (task, now = Date.now()) =>
+  task.start_at && new Date(task.start_at) > now ? `${formatDateTime(task.start_at)} 開始` : ''
+
 // 死線近的在前，沒死線的在後；同死線依建立時間
 export function sortTasks (tasks) {
   const key = t => t.deadline ? new Date(t.deadline).getTime() : Infinity

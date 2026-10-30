@@ -44,6 +44,9 @@
           />
         </div>
         <h3 class="title">{{ t.title }}</h3>
+        <span v-if="startLabel(t)" class="deadline not-started">
+          <q-icon name="event" size="16px" />{{ startLabel(t) }}
+        </span>
         <span v-if="t.deadline" class="deadline" :class="deadlineState(t)">
           <q-icon name="schedule" size="16px" />{{ deadlineLabel(t) }}
         </span>
@@ -71,7 +74,7 @@ import { useTasksStore } from '../stores/tasks'
 import { useCategoriesStore } from '../stores/categories'
 import { useProjectsStore } from '../stores/projects'
 import { useBlocksStore } from '../stores/blocks'
-import { deadlineState, deadlineLabel, matchProject, sortTasks, subtaskProgress } from '../utils/task'
+import { deadlineState, deadlineLabel, startLabel, matchProject, sortTasks, subtaskProgress } from '../utils/task'
 import { formatHours } from '../utils/timeline'
 import TaskDialog from '../components/TaskDialog.vue'
 import TaskTag from '../components/TaskTag.vue'
@@ -135,6 +138,7 @@ onMounted(() => Promise.all([tasks.load(), cats.load(), projects.load(), blocks.
   padding: 4px 10px; border-radius: 10px; font-size: 14px;
   background: var(--soft); color: var(--ink);
 }
+.deadline.not-started { background: transparent; border: 2px dashed var(--grid); color: var(--sub); }
 .deadline.soon { background: var(--butter); color: var(--on-color); font-weight: 700; }
 .deadline.overdue { background: var(--danger); color: var(--on-color); font-weight: 700; }
 .bar { height: 12px; border-radius: 999px; border: 2px solid var(--line); background: var(--soft); overflow: hidden; }

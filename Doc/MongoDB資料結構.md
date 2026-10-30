@@ -15,6 +15,7 @@ API JSON 欄位與 Mongo 欄位相同（snake_case）。
 | title | string | 1～100 字 |
 | description | string | 可空字串 |
 | category_id | string / null | categories 的 _id（hex 字串）；null = 未分類 |
+| start_at | Date / null | 開始時間；null＝已開始。時程表只列出該週結束前已開始的任務 |
 | deadline | Date / null | 死線 |
 | subtasks | array | `{ id, name, done }`；id 由前端產生 UUID，陣列順序即顯示順序；空白名稱的項目儲存時略過 |
 | done | boolean | |

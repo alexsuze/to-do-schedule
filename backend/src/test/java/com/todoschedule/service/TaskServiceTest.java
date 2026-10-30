@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.ArrayList;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -61,18 +62,18 @@ class TaskServiceTest {
     }
 
     private static TaskRequest req(String title, boolean done) {
-        return new TaskRequest(title, null, null, null, null, null, done);
+        return new TaskRequest(title, null, null, null, null, null, null, done);
     }
 
     @Test
     void validatesAndCleansInput() {
         assertThrows(ResponseStatusException.class, () -> service.create(ME, req("  ", false)));
-        assertThrows(ResponseStatusException.class, () -> service.create(ME, new TaskRequest("A", null, null, "nope", null, null, false)));
-        assertThrows(ResponseStatusException.class, () -> service.create(OTHER, new TaskRequest("A", null, null, "c1", null, null, false)), "別人的分類");
-        assertThrows(ResponseStatusException.class, () -> service.create(OTHER, new TaskRequest("A", null, "p2", null, null, null, false)), "別人的專案");
+        assertThrows(ResponseStatusException.class, () -> service.create(ME, new TaskRequest("A", null, null, "nope", null, null, null, false)));
+        assertThrows(ResponseStatusException.class, () -> service.create(OTHER, new TaskRequest("A", null, null, "c1", null, null, null, false)), "別人的分類");
+        assertThrows(ResponseStatusException.class, () -> service.create(OTHER, new TaskRequest("A", null, "p2", null, null, null, null, false)), "別人的專案");
 
         // 有分類時專案以分類的專案為準（傳了不一樣的專案也會被修正）
-        Task t = service.create(ME, new TaskRequest(" 報表 ", null, "p2", "c1", null, List.of(sub(" 匯出 "), sub(" ")), false));
+        Task t = service.create(ME, new TaskRequest(" 報表 ", null, "p2", "c1", null, null, List.of(sub(" 匯出 "), sub(" ")), false));
         assertEquals(ME, t.userId);
         assertEquals("報表", t.title);
         assertEquals("c1", t.categoryId);
@@ -83,8 +84,15 @@ class TaskServiceTest {
     }
 
     @Test
+    void startMustNotBeAfterDeadline() {
+        Instant d = Instant.parse("2026-11-05T10:00:00Z");
+        assertThrows(ResponseStatusException.class, () -> service.create(ME, new TaskRequest("A", null, null, null, d.plusSeconds(60), d, null, false)));
+        assertEquals(d, service.create(ME, new TaskRequest("A", null, null, null, d, d, null, false)).startAt);
+    }
+
+    @Test
     void projectWithoutCategoryOrNone() {
-        assertEquals("p2", service.create(ME, new TaskRequest("A", null, "p2", null, null, null, false)).projectId);
+        assertEquals("p2", service.create(ME, new TaskRequest("A", null, "p2", null, null, null, null, false)).projectId);
         assertNull(service.create(ME, req("B", false)).projectId, "無專案");
     }
 

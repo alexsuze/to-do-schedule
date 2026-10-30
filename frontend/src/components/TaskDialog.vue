@@ -38,7 +38,10 @@
             </template>
           </q-select>
         </div>
-        <DateTimeField v-model="form.deadline" label="死線" default-time="18:00" outlined />
+        <div class="two-col">
+          <DateTimeField v-model="form.start_at" label="開始" default-time="09:00" hint="不填＝已經開始" outlined />
+          <DateTimeField v-model="form.deadline" label="死線" default-time="18:00" outlined />
+        </div>
 
         <div class="subtasks">
           <div class="row justify-between items-center">
@@ -134,6 +137,7 @@ function reset () {
     description: t?.description || '',
     project_id: t ? (t.project_id || null) : props.presetProjectId,
     category_id: t?.category_id || null,
+    start_at: isoToLocal(t?.start_at),
     deadline: isoToLocal(t?.deadline),
     subtasks: (t?.subtasks || []).map(s => ({ ...s })),
     done: !!t?.done
@@ -163,10 +167,16 @@ async function save (done) {
     $q.notify({ type: 'warning', message: '請輸入標題' })
     return false
   }
+  const start = localToIso(form.value.start_at)
+  const deadline = localToIso(form.value.deadline)
+  if (start && deadline && start > deadline) {
+    $q.notify({ type: 'warning', message: '開始時間不能晚於死線' })
+    return false
+  }
   addSub() // 還沒按 Enter 的子任務也一起存
   saving.value = true
   try {
-    await tasks.save({ ...form.value, id: props.task?.id, deadline: localToIso(form.value.deadline), done })
+    await tasks.save({ ...form.value, id: props.task?.id, start_at: start, deadline, done })
     snapshot.value = JSON.stringify(form.value)
     emit('update:modelValue', false)
     $q.notify({ type: 'positive', message: props.task ? '已儲存' : '已新增任務' })

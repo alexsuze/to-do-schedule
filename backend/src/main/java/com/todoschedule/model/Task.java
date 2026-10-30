@@ -29,6 +29,9 @@ public class Task {
     public String projectId;
     @Field("category_id")
     public String categoryId;
+    /** 開始時間，null＝已開始；時程表只列出該週結束前已開始的任務。 */
+    @Field("start_at")
+    public Instant startAt;
     public Instant deadline;
     /** 陣列順序即顯示順序。 */
     public List<Subtask> subtasks = new ArrayList<>();

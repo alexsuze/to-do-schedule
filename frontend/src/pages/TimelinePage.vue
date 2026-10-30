@@ -32,7 +32,7 @@
           <span class="ellipsis col" style="font-size: 14px">{{ t.title }}</span>
           <span class="font-round text-sub" style="font-size: 13px">{{ formatHours(blocks.minutesByTask[t.id] || 0) }}</span>
         </div>
-        <div v-if="!pool.length" class="text-sub" style="font-size: 14px">{{ search ? '找不到符合的任務' : '沒有未完成任務' }}</div>
+        <div v-if="!pool.length" class="text-sub" style="font-size: 14px">{{ search ? '找不到符合的任務' : '這週沒有已開始的未完成任務' }}</div>
         <span class="text-sub" style="font-size: 12px; line-height: 1.5">同一個任務可以拖進去很多次，工時會自動加總。手機請按住約半秒再拖。</span>
       </aside>
 
@@ -104,7 +104,7 @@ import { useTasksStore } from '../stores/tasks'
 import { useCategoriesStore } from '../stores/categories'
 import { useProjectsStore } from '../stores/projects'
 import { useBlocksStore } from '../stores/blocks'
-import { matchProject, sortTasks } from '../utils/task'
+import { matchProject, sortTasks, startedBefore } from '../utils/task'
 import {
   DEFAULT_RANGE, EXPAND_HOURS, SLOTS_PER_DAY, addDays, blockSlots, formatHours, formatSlot,
   minutesOf, overlaps, sameDay, slotOf, slotTime, visibleRange, weekStart
@@ -384,7 +384,8 @@ const search = ref('')
 const projectFilter = ref('all')
 const pool = computed(() => {
   const q = (search.value || '').trim().toLowerCase()
-  return sortTasks(tasks.tasks.filter(t => !t.done && matchProject(t, projectFilter.value) && (!q || t.title.toLowerCase().includes(q))))
+  const end = addDays(ws.value, 7) // 這週結束前已開始的才列出
+  return sortTasks(tasks.tasks.filter(t => !t.done && startedBefore(t, end) && matchProject(t, projectFilter.value) && (!q || t.title.toLowerCase().includes(q))))
 })
 
 onMounted(() => {

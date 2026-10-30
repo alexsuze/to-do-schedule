@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { deadlineState, deadlineLabel, sortTasks, subtaskProgress, trashDaysLeft, isoToLocal, localToIso } from './task.js'
+import { startedBefore, startLabel, deadlineState, deadlineLabel, sortTasks, subtaskProgress, trashDaysLeft, isoToLocal, localToIso } from './task.js'
 
 const now = new Date('2026-10-28T10:00:00').getTime()
 const at = s => new Date(s).toISOString()
@@ -40,4 +40,17 @@ test('trash days left', () => {
 test('local time round trip', () => {
   assert.equal(isoToLocal(localToIso('2026-10-29 18:00')), '2026-10-29 18:00')
   assert.equal(localToIso('2026-10-29'), null)
+})
+
+test('start date', () => {
+  const local = s => new Date(s)
+  const t = { start_at: local('2026-11-05T09:00:00').toISOString() }
+  // 時程表：週結束（下週一 00:00）前已開始才列出；沒填＝已開始
+  assert.equal(startedBefore(t, local('2026-11-02T00:00:00')), false)
+  assert.equal(startedBefore(t, local('2026-11-09T00:00:00')), true)
+  assert.equal(startedBefore({}, local('2026-11-02T00:00:00')), true)
+  // 任務卡：還沒開始才顯示
+  assert.equal(startLabel(t, local('2026-11-01T00:00:00').getTime()), '11/05（四）09:00 開始')
+  assert.equal(startLabel(t, local('2026-11-05T09:00:00').getTime()), '')
+  assert.equal(startLabel({}), '')
 })

@@ -35,7 +35,7 @@ public class TaskService {
     }
 
     /** 新增與編輯共用，編輯為完整覆寫。有分類時專案以分類的專案為準。 */
-    public record TaskRequest(String title, String description, String projectId, String categoryId, Instant deadline,
+    public record TaskRequest(String title, String description, String projectId, String categoryId, Instant startAt, Instant deadline,
                               List<Subtask> subtasks, Boolean done) {}
 
     /** droppedBlocks：刪除期間被其他任務佔用、因此沒還原的時段數。 */
@@ -125,10 +125,15 @@ public class TaskService {
             project = projects.get(t.userId, project).id;
         }
 
+        if (req.startAt() != null && req.deadline() != null && req.startAt().isAfter(req.deadline())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "開始時間不能晚於死線");
+        }
+
         t.title = title;
         t.description = req.description() == null ? "" : req.description();
         t.projectId = project;
         t.categoryId = cat;
+        t.startAt = req.startAt();
         t.deadline = req.deadline();
         t.subtasks = new ArrayList<>();
         if (req.subtasks() != null) {

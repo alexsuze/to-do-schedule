@@ -8,6 +8,7 @@ const toRequest = t => ({
   description: t.description,
   project_id: t.project_id || null,
   category_id: t.category_id || null,
+  start_at: t.start_at || null,
   deadline: t.deadline || null,
   subtasks: t.subtasks || [],
   done: !!t.done
