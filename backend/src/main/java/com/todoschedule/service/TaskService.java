@@ -53,8 +53,7 @@ public class TaskService {
     }
 
     public Task update(String userId, String id, TaskRequest req) {
-        Task t = get(userId, id);
-        if (t.deletedAt != null) throw new ResponseStatusException(HttpStatus.CONFLICT, "任務在回收桶中，請先還原");
+        Task t = active(userId, id);
         apply(t, req);
         return repo.save(t);
     }
@@ -64,6 +63,22 @@ public class TaskService {
         if (t.deletedAt != null) return;
         t.deletedAt = Instant.now();
         repo.save(t);
+    }
+
+    /* 封存（需求書 11）：自動封存由前端依設定天數判斷，這裡只記手動封存與解除封存的時間 */
+
+    public Task archive(String userId, String id) {
+        Task t = active(userId, id);
+        if (!t.done) throw new ResponseStatusException(HttpStatus.CONFLICT, "只有已完成的任務可以封存");
+        t.archivedAt = Instant.now();
+        return repo.save(t);
+    }
+
+    public Task unarchive(String userId, String id) {
+        Task t = active(userId, id);
+        t.archivedAt = null;
+        t.unarchivedAt = Instant.now();
+        return repo.save(t);
     }
 
     /* 回收桶 */
@@ -104,6 +119,12 @@ public class TaskService {
     private Task get(String userId, String id) {
         return repo.findById(id).filter(t -> userId.equals(t.userId))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "找不到此任務"));
+    }
+
+    private Task active(String userId, String id) {
+        Task t = get(userId, id);
+        if (t.deletedAt != null) throw new ResponseStatusException(HttpStatus.CONFLICT, "任務在回收桶中，請先還原");
+        return t;
     }
 
     private Task trashed(String userId, String id) {
@@ -147,7 +168,10 @@ public class TaskService {
         }
         boolean done = Boolean.TRUE.equals(req.done());
         if (done && !t.done) t.completedAt = Instant.now();
-        if (!done) t.completedAt = null;
+        if (!done) {
+            t.completedAt = null;
+            t.archivedAt = null;
+        }
         t.done = done;
     }
 }

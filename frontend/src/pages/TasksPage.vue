@@ -3,9 +3,12 @@
     <div class="row items-end justify-between q-mb-lg" style="gap: 16px">
       <div>
         <h1 class="page-title">任務</h1>
-        <p class="text-sub q-ma-none" style="font-size: 15px">{{ openCount }} 個未完成，一張一張來就好</p>
+        <p class="text-sub q-ma-none" style="font-size: 15px">
+          {{ openCount }} 個未完成，一張一張來就好<span v-if="hiddenCount">（已隱藏 {{ hiddenCount }} 個未開始）</span>
+        </p>
       </div>
       <div class="row items-center" style="gap: 16px">
+        <q-toggle v-model="showNotStarted" color="primary" label="顯示未開始" class="text-weight-bold" />
         <ProjectFilter v-model="projectFilter" />
         <q-btn-toggle
           v-model="filter"
@@ -35,6 +38,12 @@
         <div class="row items-center no-wrap">
           <TaskTag :task="t" />
           <q-space />
+          <q-btn
+            v-if="t.done" flat round icon="inventory_2" class="q-mr-xs" aria-label="立即封存"
+            @click.stop="archive(t)"
+          >
+            <q-tooltip>立即封存</q-tooltip>
+          </q-btn>
           <q-btn
             round unelevated
             class="check-btn" :class="t.done ? 'bg-mint' : 'bg-surface'"
@@ -69,17 +78,19 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useQuasar } from 'quasar'
 import { useTasksStore } from '../stores/tasks'
 import { useCategoriesStore } from '../stores/categories'
 import { useProjectsStore } from '../stores/projects'
 import { useBlocksStore } from '../stores/blocks'
-import { deadlineState, deadlineLabel, startLabel, matchProject, sortTasks, subtaskProgress } from '../utils/task'
+import { deadlineState, deadlineLabel, isArchived, notStarted, startLabel, matchProject, sortTasks, subtaskProgress } from '../utils/task'
 import { formatHours } from '../utils/timeline'
 import TaskDialog from '../components/TaskDialog.vue'
 import TaskTag from '../components/TaskTag.vue'
 import ProjectFilter from '../components/ProjectFilter.vue'
 
+const $q = useQuasar()
 const tasks = useTasksStore()
 const cats = useCategoriesStore()
 const projects = useProjectsStore()
@@ -96,13 +107,30 @@ const projectFilter = ref('all')
 // 篩選單一專案時，新增任務預設帶入該專案
 const presetProject = computed(() => ['all', 'none'].includes(projectFilter.value) ? null : projectFilter.value)
 
-const shown = computed(() => sortTasks(tasks.tasks.filter(t =>
-  (filter.value === 'all' || (filter.value === 'done') === t.done) && matchProject(t, projectFilter.value))))
+// 顯示 / 隱藏未開始的任務，記在這台電腦
+const NOT_STARTED_KEY = 'showNotStarted'
+const showNotStarted = ref((() => { try { return localStorage.getItem(NOT_STARTED_KEY) !== '0' } catch { return true } })())
+watch(showNotStarted, v => { try { localStorage.setItem(NOT_STARTED_KEY, v ? '1' : '0') } catch { /* 不記也能用 */ } })
+
+// 封存的任務只出現在封存頁
+const matched = computed(() => tasks.tasks.filter(t =>
+  !isArchived(t, tasks.archiveDays) &&
+  (filter.value === 'all' || (filter.value === 'done') === t.done) && matchProject(t, projectFilter.value)))
+const hiddenCount = computed(() => showNotStarted.value ? 0 : matched.value.filter(t => notStarted(t)).length)
+const shown = computed(() => sortTasks(showNotStarted.value ? matched.value : matched.value.filter(t => !notStarted(t))))
 const openCount = computed(() => tasks.tasks.filter(t => !t.done).length)
 
 function pct (t) {
   const p = subtaskProgress(t)
   return `${Math.round(p.done / p.total * 100)}%`
+}
+
+async function archive (t) {
+  await tasks.archive(t.id)
+  $q.notify({
+    type: 'positive', message: `已封存「${t.title}」，可到左側「封存」查看`,
+    actions: [{ label: '復原', color: 'white', noCaps: true, handler: () => tasks.unarchive(t.id) }]
+  })
 }
 
 const dialog = ref(false)
@@ -112,7 +140,7 @@ function open (t) {
   dialog.value = true
 }
 
-onMounted(() => Promise.all([tasks.load(), cats.load(), projects.load(), blocks.load()]))
+onMounted(() => Promise.all([tasks.load(), tasks.loadArchiveDays(), cats.load(), projects.load(), blocks.load()]))
 </script>
 
 <style scoped>

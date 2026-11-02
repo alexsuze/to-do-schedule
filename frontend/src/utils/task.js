@@ -5,6 +5,8 @@ const DAY = 24 * 3600 * 1000
 const WEEKDAYS = '日一二三四五六'
 
 export const TRASH_KEEP_DAYS = 30
+export const ARCHIVE_DAY_OPTIONS = [7, 14, 30, 60, 90] // 與後端 SettingsService.ARCHIVE_DAYS 一致
+export const DEFAULT_ARCHIVE_DAYS = 14
 
 // 分類預設色盤（粉嫩色，文字一律用深色）；新增分類依序輪流取色
 export const PALETTE = [
@@ -48,9 +50,20 @@ export function deadlineLabel (task, now = Date.now()) {
 // 開始時間在 end 之前（或沒填＝已開始）；時程表用週末判斷這週要不要列出
 export const startedBefore = (task, end) => !task.start_at || new Date(task.start_at) < end
 
+// 開始時間還沒到
+export const notStarted = (task, now = Date.now()) => !!task.start_at && new Date(task.start_at) > now
+
 // 還沒開始的任務卡標籤，例：11/05（四）09:00 開始；已開始回傳空字串
 export const startLabel = (task, now = Date.now()) =>
-  task.start_at && new Date(task.start_at) > now ? `${formatDateTime(task.start_at)} 開始` : ''
+  notStarted(task, now) ? `${formatDateTime(task.start_at)} 開始` : ''
+
+// 封存（需求書 11）：已完成且（手動封存，或完成 / 解除封存兩者較晚者已滿 days 天）
+export function isArchived (task, days, now = Date.now()) {
+  if (!task.done) return false
+  if (task.archived_at) return true
+  const from = Math.max(new Date(task.completed_at || 0), new Date(task.unarchived_at || 0))
+  return from > 0 && now - from >= days * DAY
+}
 
 // 死線近的在前，沒死線的在後；同死線依建立時間
 export function sortTasks (tasks) {

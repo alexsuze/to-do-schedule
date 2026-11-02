@@ -20,6 +20,8 @@ API JSON 欄位與 Mongo 欄位相同（snake_case）。
 | subtasks | array | `{ id, name, done }`；id 由前端產生 UUID，陣列順序即顯示順序；空白名稱的項目儲存時略過 |
 | done | boolean | |
 | completed_at | Date / null | 改為完成時寫入、改回未完成時清除；統計「期間內完成數」用 |
+| archived_at | Date / null | 手動「立即封存」時間；非 null 即封存。改回未完成時清除（v1.3） |
+| unarchived_at | Date / null | 最後一次解除封存時間。自動封存：已完成且 `max(completed_at, unarchived_at)` 滿個人設定天數（前端判斷，不另存狀態）（v1.3） |
 | deleted_at | Date / null | 非 null 即在回收桶；滿 30 天由排程（每天 03:00 台北時間）永久刪除 |
 | created_at / updated_at | Date | Spring Data Auditing 自動寫入 |
 
@@ -78,6 +80,7 @@ API JSON 欄位與 Mongo 欄位相同（snake_case）。
 | digest_time | string | `HH:mm`，台北時間，預設 `08:00` |
 | last_digest_date | string / null | 最後處理摘要的日期 `yyyy-MM-dd`（台北時間），同一天不重複處理 |
 | last_digest_result | string / null | 最後一次結果，例如「10/28 08:00 已寄出」「… 未寄送」「… 寄送失敗：…」，顯示在設定頁 |
+| archive_days | int | 已完成任務幾天後自動封存，7 / 14 / 30 / 60 / 90，預設 14（v1.3） |
 
 ## users（v1.1）
 Google 登入的使用者。

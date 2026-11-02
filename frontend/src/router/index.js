@@ -11,6 +11,7 @@ const routes = [
       { path: '', name: 'tasks', component: () => import('../pages/TasksPage.vue') },
       { path: 'timeline', name: 'timeline', component: () => import('../pages/TimelinePage.vue') },
       { path: 'stats', name: 'stats', component: () => import('../pages/StatsPage.vue') },
+      { path: 'archive', name: 'archive', component: () => import('../pages/ArchivePage.vue') },
       { path: 'trash', name: 'trash', component: () => import('../pages/TrashPage.vue') },
       { path: 'settings', name: 'settings', component: () => import('../pages/SettingsPage.vue') },
       { path: 'admin', name: 'admin', component: () => import('../pages/AdminPage.vue'), meta: { admin: true } }

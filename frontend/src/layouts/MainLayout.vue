@@ -133,6 +133,7 @@ const NAV = [
   { name: 'tasks', label: '任務', icon: 'task_alt' },
   { name: 'timeline', label: '時程表', icon: 'calendar_month' },
   { name: 'stats', label: '統計', icon: 'bar_chart' },
+  { name: 'archive', label: '封存', icon: 'inventory_2' },
   { name: 'trash', label: '回收桶', icon: 'delete_outline' },
   { name: 'settings', label: '設定', icon: 'tune' }
 ]

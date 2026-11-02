@@ -51,6 +51,16 @@ public class TaskController {
         service.delete(user.id, id);
     }
 
+    @PostMapping("/tasks/{id}/archive")
+    public Task archive(@RequestAttribute(AuthFilter.USER) User user, @PathVariable String id) {
+        return service.archive(user.id, id);
+    }
+
+    @PostMapping("/tasks/{id}/unarchive")
+    public Task unarchive(@RequestAttribute(AuthFilter.USER) User user, @PathVariable String id) {
+        return service.unarchive(user.id, id);
+    }
+
     @GetMapping("/trash")
     public List<Task> trash(@RequestAttribute(AuthFilter.USER) User user) {
         return service.trash(user.id);

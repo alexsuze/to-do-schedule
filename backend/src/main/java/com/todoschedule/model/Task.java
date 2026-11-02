@@ -38,6 +38,12 @@ public class Task {
     public boolean done;
     @Field("completed_at")
     public Instant completedAt;
+    /** 手動封存時間；非 null 即封存。改回未完成時清除。 */
+    @Field("archived_at")
+    public Instant archivedAt;
+    /** 最後一次解除封存時間；自動封存天數從 completed_at 與此欄較晚者起算（前端判斷，需求書 11）。 */
+    @Field("unarchived_at")
+    public Instant unarchivedAt;
     /** 非 null 即在回收桶。 */
     @Field("deleted_at")
     public Instant deletedAt;

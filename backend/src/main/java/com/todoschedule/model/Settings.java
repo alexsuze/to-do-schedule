@@ -24,4 +24,7 @@ public class Settings {
     /** 最後一次摘要的結果，顯示在設定頁。 */
     @Field("last_digest_result")
     public String lastDigestResult;
+    /** 已完成任務幾天後自動封存（需求書 11）。 */
+    @Field("archive_days")
+    public int archiveDays = 14;
 }

@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { startedBefore, startLabel, deadlineState, deadlineLabel, sortTasks, subtaskProgress, trashDaysLeft, isoToLocal, localToIso } from './task.js'
+import { isArchived, notStarted, startedBefore, startLabel, deadlineState, deadlineLabel, sortTasks, subtaskProgress, trashDaysLeft, isoToLocal, localToIso } from './task.js'
 
 const now = new Date('2026-10-28T10:00:00').getTime()
 const at = s => new Date(s).toISOString()
@@ -53,4 +53,20 @@ test('start date', () => {
   assert.equal(startLabel(t, local('2026-11-01T00:00:00').getTime()), '11/05（四）09:00 開始')
   assert.equal(startLabel(t, local('2026-11-05T09:00:00').getTime()), '')
   assert.equal(startLabel({}), '')
+})
+
+test('not started', () => {
+  assert.equal(notStarted({ start_at: at('2026-10-29T09:00:00') }, now), true)
+  assert.equal(notStarted({ start_at: at('2026-10-28T09:00:00') }, now), false)
+  assert.equal(notStarted({}, now), false)
+})
+
+test('archived after n days, manual, unarchive restarts the count', () => {
+  const done = { done: true, completed_at: at('2026-10-14T10:00:00') }
+  assert.equal(isArchived(done, 14, now), true)
+  assert.equal(isArchived(done, 30, now), false)
+  assert.equal(isArchived({ ...done, done: false }, 14, now), false)
+  assert.equal(isArchived({ ...done, unarchived_at: at('2026-10-27T10:00:00') }, 14, now), false)
+  assert.equal(isArchived({ done: true, completed_at: at('2026-10-28T09:00:00'), archived_at: at('2026-10-28T09:30:00') }, 14, now), true)
+  assert.equal(isArchived({ done: true }, 14, now), false, '沒有完成時間的舊資料不自動封存')
 })

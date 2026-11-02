@@ -3,6 +3,7 @@ package com.todoschedule.controller;
 import com.todoschedule.config.AuthFilter;
 import com.todoschedule.model.User;
 import com.todoschedule.service.SettingsService;
+import com.todoschedule.service.SettingsService.ArchiveDaysRequest;
 import com.todoschedule.service.SettingsService.SettingsRequest;
 import com.todoschedule.service.SettingsService.SettingsView;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -34,6 +35,11 @@ public class SettingsController {
     @PutMapping
     public SettingsView update(@RequestAttribute(AuthFilter.USER) User user, @RequestBody SettingsRequest req) {
         return service.update(user, req);
+    }
+
+    @PutMapping("/archive-days")
+    public SettingsView archiveDays(@RequestAttribute(AuthFilter.USER) User user, @RequestBody ArchiveDaysRequest req) {
+        return service.updateArchiveDays(user, req);
     }
 
     @PostMapping("/test-email")

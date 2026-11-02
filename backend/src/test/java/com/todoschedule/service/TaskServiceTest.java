@@ -118,6 +118,22 @@ class TaskServiceTest {
     }
 
     @Test
+    void archiveFlow() {
+        Task t = service.create(ME, req("A", false));
+        assertThrows(ResponseStatusException.class, () -> service.archive(ME, t.id), "未完成不能封存");
+        service.update(ME, t.id, req("A", true));
+        assertThrows(ResponseStatusException.class, () -> service.archive(OTHER, t.id), "別人的任務");
+        service.archive(ME, t.id);
+        assertNotNull(t.archivedAt);
+        service.unarchive(ME, t.id);
+        assertNull(t.archivedAt);
+        assertNotNull(t.unarchivedAt, "解除封存重新起算");
+        service.archive(ME, t.id);
+        service.update(ME, t.id, req("A", false));
+        assertNull(t.archivedAt, "改回未完成即解除封存");
+    }
+
+    @Test
     void cannotTouchOthersTasks() {
         Task t = service.create(ME, req("我的", false));
         assertThrows(ResponseStatusException.class, () -> service.update(OTHER, t.id, req("改掉", false)));

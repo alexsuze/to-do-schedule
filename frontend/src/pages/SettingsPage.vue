@@ -2,7 +2,7 @@
   <q-page class="page column q-gutter-y-lg" style="max-width: 860px">
     <div>
       <h1 class="page-title">設定</h1>
-      <p class="text-sub q-ma-none" style="font-size: 15px">外觀、提醒、專案與分類、每日摘要信</p>
+      <p class="text-sub q-ma-none" style="font-size: 15px">外觀、提醒、封存、專案與分類、每日摘要信</p>
     </div>
 
     <section class="fun-card q-pa-lg row items-center justify-between" style="gap: 16px" aria-label="外觀">
@@ -41,6 +41,17 @@
         <q-select v-model="reminder.lead" :options="LEAD_OPTIONS" emit-value map-options outlined dense label="提前多久提醒" style="min-width: 180px" />
         <q-btn no-caps unelevated class="fun-btn bg-surface" label="測試通知" @click="testReminder" />
       </div>
+    </section>
+
+    <section class="fun-card q-pa-lg row items-center justify-between" style="gap: 16px" aria-label="已完成任務封存">
+      <div style="flex: 1; min-width: 240px">
+        <h2 class="section-title">已完成任務封存</h2>
+        <div class="text-sub">完成超過設定天數的任務會自動移到左側「封存」，改了馬上套用到所有已完成任務。解除封存後重新計算。</div>
+      </div>
+      <q-select
+        :model-value="tasks.archiveDays" :options="ARCHIVE_OPTIONS" emit-value map-options outlined dense
+        label="完成幾天後封存" style="min-width: 180px" @update:model-value="setArchiveDays"
+      />
     </section>
 
     <section class="fun-card q-pa-lg column q-gutter-y-md" aria-label="專案管理">
@@ -160,7 +171,7 @@ import api from '../services/api'
 import { useCategoriesStore } from '../stores/categories'
 import { useProjectsStore } from '../stores/projects'
 import { useTasksStore } from '../stores/tasks'
-import { PALETTE } from '../utils/task'
+import { ARCHIVE_DAY_OPTIONS, PALETTE } from '../utils/task'
 import { setDark } from '../utils/theme'
 import { resolveUnsaved, useUnsavedGuard } from '../utils/unsaved'
 import ColorPicker from '../components/ColorPicker.vue'
@@ -181,6 +192,13 @@ async function toggleReminder (on) {
 function testReminder () {
   if (permission.value !== 'granted') return
   new Notification(reminderTitle('任務名稱', '專案名稱'), { body: '這是測試通知，正式提醒會顯示時段', icon: ICON })
+}
+
+/* 已完成任務封存天數：選了就存 */
+const ARCHIVE_OPTIONS = ARCHIVE_DAY_OPTIONS.map(d => ({ label: `${d} 天`, value: d }))
+async function setArchiveDays (d) {
+  await tasks.setArchiveDays(d)
+  $q.notify({ type: 'positive', message: `已改為完成 ${d} 天後封存` })
 }
 
 const countOf = id => tasks.tasks.filter(t => t.category_id === id).length
@@ -287,6 +305,7 @@ function applySettings (s) {
   lastResult.value = s.last_digest_result || ''
   email.value = s.email || ''
   available.value = !!s.digest_available
+  tasks.archiveDays = s.archive_days
 }
 
 // 成功回傳 true；API 失敗會丟錯

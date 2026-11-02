@@ -8,6 +8,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
@@ -16,6 +17,7 @@ import java.util.regex.Pattern;
 @Service
 public class SettingsService {
 
+    public static final Set<Integer> ARCHIVE_DAYS = Set.of(7, 14, 30, 60, 90);
     private static final Pattern TIME = Pattern.compile("^([01]\\d|2[0-3]):[0-5]\\d$");
 
     private final SettingsRepository repo;
@@ -30,11 +32,13 @@ public class SettingsService {
 
     public record SettingsRequest(Boolean digestEnabled, String digestTime) {}
 
+    public record ArchiveDaysRequest(Integer days) {}
+
     /** 設定頁要顯示的內容。 */
     public record SettingsView(boolean digestEnabled, String digestTime, String lastDigestResult,
-                               String email, boolean digestAvailable) {
+                               String email, boolean digestAvailable, int archiveDays) {
         static SettingsView of(Settings s, User u, boolean available) {
-            return new SettingsView(s.digestEnabled, s.digestTime, s.lastDigestResult, u.email, available);
+            return new SettingsView(s.digestEnabled, s.digestTime, s.lastDigestResult, u.email, available, s.archiveDays);
         }
     }
 
@@ -57,7 +61,11 @@ public class SettingsService {
     }
 
     public SettingsView view(User u) {
-        return SettingsView.of(get(u.id), u, digestAvailable(u));
+        return view(u, get(u.id));
+    }
+
+    private SettingsView view(User u, Settings s) {
+        return SettingsView.of(s, u, digestAvailable(u));
     }
 
     public SettingsView update(User u, SettingsRequest req) {
@@ -70,6 +78,15 @@ public class SettingsService {
         s.digestEnabled = enabled;
         s.digestTime = req.digestTime();
         return SettingsView.of(repo.save(s), u, true);
+    }
+
+    public SettingsView updateArchiveDays(User u, ArchiveDaysRequest req) {
+        if (req.days() == null || !ARCHIVE_DAYS.contains(req.days())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "封存天數只能選 7、14、30、60 或 90 天");
+        }
+        Settings s = get(u.id);
+        s.archiveDays = req.days();
+        return view(u, repo.save(s));
     }
 
     public void sendTest(User u) {
