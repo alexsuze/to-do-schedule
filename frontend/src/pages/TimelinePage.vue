@@ -3,7 +3,7 @@
     <div class="row items-end justify-between q-mb-lg" style="gap: 16px">
       <div>
         <h1 class="page-title">時程表</h1>
-        <p class="text-sub q-ma-none" style="font-size: 15px">把左邊的任務拖進格子，拉下緣調整工時，拖到下方垃圾桶移除</p>
+        <p class="text-sub q-ma-none" style="font-size: 15px">把左邊的任務拖進格子，拉角落圓點調整開始或結束，拖到下方垃圾桶移除</p>
       </div>
       <div class="row items-center" style="gap: 10px">
         <span class="week-total">本週已排 <span class="font-round">{{ formatHours(weekMinutes) }}</span></span>
@@ -63,7 +63,7 @@
             >
               <div
                 v-for="b in dayBlocks[i]" :key="b.id"
-                class="block" :class="{ done: taskOf(b)?.done, moving: drag?.block?.id === b.id }"
+                class="block" :class="{ done: taskOf(b)?.done, moving: drag?.block?.id === b.id, resizing: resizing?.b.id === b.id }"
                 :style="blockStyle(b)"
                 :title="`${projects.label(taskOf(b)?.project_id).name}｜${taskOf(b)?.title}（${blockRange(b)}）`"
                 @pointerdown="onPointerDown($event, { block: b, taskId: b.task_id, title: taskOf(b)?.title, len: lenOf(b), grab: grabSlot($event) })"
@@ -72,7 +72,8 @@
               >
                 <span class="block-title">{{ taskOf(b)?.title }}</span>
                 <span v-if="lenOf(b) >= 2" class="font-round" style="font-size: 12px; opacity: .85">{{ blockRange(b) }}</span>
-                <div class="resize" aria-hidden="true" @pointerdown.stop.prevent="startResize($event, b)" @click.stop />
+                <div class="resize top" aria-hidden="true" @pointerdown.stop.prevent="startResize($event, b, 'start')" @click.stop />
+                <div class="resize bottom" aria-hidden="true" @pointerdown.stop.prevent="startResize($event, b, 'end')" @click.stop />
               </div>
               <div v-if="ghost && ghost.day === i" class="ghost" :class="{ bad: ghost.bad }" :style="{ top: `${(ghost.slot - view.start * 2) * ROW + 1}px`, height: `${ghost.len * ROW - 3}px` }" />
               <div v-if="isToday(d) && nowTop !== null" class="now" :style="{ top: `${nowTop}px` }" />
@@ -107,7 +108,7 @@ import { useBlocksStore } from '../stores/blocks'
 import { matchProject, sortTasks, startedBefore } from '../utils/task'
 import {
   DEFAULT_RANGE, EXPAND_HOURS, SLOTS_PER_DAY, addDays, blockSlots, formatHours, formatSlot,
-  minutesOf, overlaps, sameDay, slotOf, slotTime, visibleRange, weekStart
+  minutesOf, overlaps, sameDay, slotTime, visibleRange, weekStart
 } from '../utils/timeline'
 import { dateKey, loadYear } from '../utils/holidays'
 import TaskDialog from '../components/TaskDialog.vue'
@@ -190,12 +191,14 @@ const nowTop = computed(() => {
 const taskMap = computed(() => Object.fromEntries(tasks.tasks.map(t => [t.id, t])))
 const taskOf = b => taskMap.value[b.task_id]
 
-// 拉伸中的時段用暫時長度顯示
+// 拉伸中的時段用暫時的開始 / 長度顯示
 const resizing = ref(null)
-const lenOf = b => resizing.value?.b.id === b.id ? resizing.value.len : blockSlots(b).len
-const blockRange = b => { const s = blockSlots(b).start; return `${formatSlot(s)}–${formatSlot(s + lenOf(b))}` }
+const isResizing = b => resizing.value?.b.id === b.id
+const startOf = b => isResizing(b) ? resizing.value.start : blockSlots(b).start
+const lenOf = b => isResizing(b) ? resizing.value.len : blockSlots(b).len
+const blockRange = b => { const s = startOf(b); return `${formatSlot(s)}–${formatSlot(s + lenOf(b))}` }
 function blockStyle (b) {
-  const s = blockSlots(b).start
+  const s = startOf(b)
   return {
     top: `${(s - view.value.start * 2) * ROW + 1}px`,
     height: `${lenOf(b) * ROW - 3}px`,
@@ -323,26 +326,33 @@ function endDrag () {
   overTrash.value = false
 }
 
-/* 拉下緣調整工時 */
-function startResize (e, b) {
+/* 拉左上角圓點改開始時間、右下角圓點改結束時間；最短 30 分鐘、不跨日 */
+function startResize (e, b, edge) {
   const { start, len } = blockSlots(b)
-  resizing.value = { b, len, origLen: len, y: e.clientY, max: SLOTS_PER_DAY - start }
+  resizing.value = { b, edge, start, len, origStart: start, origLen: len, y: e.clientY }
   window.addEventListener('pointermove', onResizeMove)
   window.addEventListener('pointerup', onResizeEnd, { once: true })
 }
 
 function onResizeMove (e) {
   const r = resizing.value
-  r.len = Math.min(Math.max(r.origLen + Math.round((e.clientY - r.y) / ROW), 1), r.max)
+  const delta = Math.round((e.clientY - r.y) / ROW)
+  const end = r.origStart + r.origLen
+  if (r.edge === 'start') {
+    r.start = Math.min(Math.max(r.origStart + delta, 0), end - 1)
+    r.len = end - r.start
+  } else {
+    r.len = Math.min(Math.max(r.origLen + delta, 1), SLOTS_PER_DAY - r.origStart)
+  }
 }
 
 async function onResizeEnd () {
   window.removeEventListener('pointermove', onResizeMove)
   const r = resizing.value
-  if (!r || r.len === r.origLen) { resizing.value = null; return }
+  if (!r || (r.start === r.origStart && r.len === r.origLen)) { resizing.value = null; return }
   const day = new Date(r.b.start_at)
-  const start = new Date(r.b.start_at)
-  const end = slotTime(day, slotOf(day) + r.len)
+  const start = slotTime(day, r.start)
+  const end = slotTime(day, r.start + r.len)
   try {
     if (overlaps(blocks.list, start, end, r.b.id)) {
       $q.notify({ type: 'warning', message: '這段時間已經排了其他任務' })
@@ -465,24 +475,38 @@ onUnmounted(() => {
 
 .block {
   position: absolute; left: 4px; right: 4px; box-sizing: border-box;
-  padding: 3px 8px 8px; border-radius: 12px; overflow: hidden;
+  padding: 3px 8px 6px; border-radius: 12px;
   display: flex; flex-direction: column; gap: 1px;
   border: 2px solid #2A2633; box-shadow: 3px 3px 0 var(--edge);
   color: var(--on-color); cursor: grab; z-index: 1;
 }
-.block:hover { z-index: 3; }
+.block:hover, .block.resizing { z-index: 3; }
 .block.moving { opacity: .35; }
 .block.done { opacity: .5; }
 .block.done .block-title { text-decoration: line-through; }
 .block-title { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.resize { position: absolute; left: 0; right: 0; bottom: 0; height: 10px; cursor: ns-resize; touch-action: none; }
-.resize::after {
-  content: ''; position: absolute; left: 50%; bottom: 3px; width: 26px; height: 4px; margin-left: -13px;
-  border-radius: 4px; background: #2A2633; opacity: .45;
+/*
+ * 拉把：左上角圓點改開始、右下角圓點改結束，一半露在卡片外，不佔中間拖曳移動的位置；
+ * 上下相鄰的兩張卡片圓點左右錯開，不會按錯。外框是較大的感應區，圓點畫在 ::after。
+ */
+.resize {
+  position: absolute; width: 22px; height: 22px; cursor: ns-resize; touch-action: none; z-index: 1;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; transition: opacity .12s;
 }
-/* 觸控裝置：拉把加大，方便手指操作 */
+.resize.top { top: -11px; left: -2px; }
+.resize.bottom { bottom: -11px; right: -2px; }
+.resize::after {
+  content: ''; width: 12px; height: 12px; border-radius: 50%; box-sizing: border-box;
+  background: #fff; border: 2px solid #2A2633;
+}
+.block:hover .resize, .block.resizing .resize { opacity: 1; }
+/* 觸控裝置：圓點一直顯示並加大 */
 @media (hover: none) {
-  .resize { height: 18px; }
+  .resize { opacity: 1; width: 32px; height: 32px; }
+  .resize.top { top: -16px; left: -8px; }
+  .resize.bottom { bottom: -16px; right: -8px; }
+  .resize::after { width: 16px; height: 16px; }
 }
 .ghost {
   position: absolute; left: 4px; right: 4px; box-sizing: border-box; z-index: 2; pointer-events: none;
