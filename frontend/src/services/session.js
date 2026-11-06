@@ -1,5 +1,6 @@
 // 登入通行證與使用者資料存在瀏覽器（重新整理後仍保持登入）。讀寫失敗（無痕模式等）就當作沒登入
-const KEY = 'auth'
+// 名稱要專屬：alexsuze.github.io 底下所有專案共用同一塊 localStorage，叫 'auth' 會和 read-footprints 互相覆蓋
+const KEY = 'to-do-schedule:auth'
 
 export function loadSession () {
   try { return JSON.parse(localStorage.getItem(KEY)) || {} } catch { return {} }
