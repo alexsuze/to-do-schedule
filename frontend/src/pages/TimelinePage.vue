@@ -4,9 +4,12 @@
       <div>
         <h1 class="page-title">時程表</h1>
         <p class="text-sub q-ma-none" style="font-size: 15px">把左邊的任務拖進格子，拉角落圓點調整開始或結束，拖到下方垃圾桶移除</p>
+        <p v-if="otherBlocks.length" class="legend text-sub q-ma-none q-mt-xs">
+          <span class="busy-sample" aria-hidden="true" />其他公司已排的時段：只是提醒，仍然可以排
+        </p>
       </div>
       <div class="row items-center" style="gap: 10px">
-        <span class="week-total">本週已排 <span class="font-round">{{ formatHours(weekMinutes) }}</span></span>
+        <span class="week-total">{{ companyName }} · 本週已排 <span class="font-round">{{ formatHours(weekMinutes) }}</span></span>
         <q-btn round unelevated class="fun-btn bg-surface" icon="chevron_left" aria-label="上一週" @click="shiftWeek(-7)" />
         <span class="font-round text-weight-bold text-center" style="font-size: 18px; min-width: 128px">{{ weekLabel }}</span>
         <q-btn round unelevated class="fun-btn bg-surface" icon="chevron_right" aria-label="下一週" @click="shiftWeek(7)" />
@@ -17,7 +20,7 @@
     <div class="body">
       <aside class="pool fun-card" aria-label="未完成任務">
         <span class="text-weight-bold" style="font-size: 16px">未完成任務</span>
-        <ProjectFilter v-model="projectFilter" />
+        <ProjectFilter v-model="projectFilter" :company="cid" />
         <q-input v-model="search" dense outlined placeholder="搜尋任務" clearable>
           <template #prepend><q-icon name="search" /></template>
         </q-input>
@@ -61,6 +64,13 @@
               class="day-col" :class="{ today: isToday(d), holiday: isOff(i) }" :data-day="i"
               :style="{ height: `${rows * ROW}px` }"
             >
+              <!-- 其他公司的時段（需求書 12.5）：只是提醒，不能點、不能拖 -->
+              <div
+                v-for="o in dayOthers[i]" :key="`o${o.id}`" class="busy" :style="busyStyle(o)"
+                :title="`${otherName(o)}已排 ${blockRangeOf(o)}（不同公司可以重疊，只是提醒）`"
+              >
+                <span v-if="!coveredByMine(o, i)" class="busy-label">{{ otherName(o) }}忙碌</span>
+              </div>
               <div
                 v-for="b in dayBlocks[i]" :key="b.id"
                 class="block" :class="{ done: taskOf(b)?.done, moving: drag?.block?.id === b.id, resizing: resizing?.b.id === b.id }"
@@ -105,6 +115,8 @@ import { useTasksStore } from '../stores/tasks'
 import { useCategoriesStore } from '../stores/categories'
 import { useProjectsStore } from '../stores/projects'
 import { useBlocksStore } from '../stores/blocks'
+import { useCompaniesStore } from '../stores/companies'
+import { overlapsAny, splitBlocks } from '../utils/company'
 import { matchProject, sortTasks, startedBefore } from '../utils/task'
 import {
   DEFAULT_RANGE, EXPAND_HOURS, SLOTS_PER_DAY, addDays, blockSlots, formatHours, formatSlot,
@@ -123,6 +135,16 @@ const tasks = useTasksStore()
 const projects = useProjectsStore()
 const cats = useCategoriesStore()
 const blocks = useBlocksStore()
+const companies = useCompaniesStore()
+
+// 時程表只看單一公司（需求書 12.5）；時段的公司＝任務的公司
+const cid = computed(() => companies.currentId)
+const companyName = computed(() => companies.current?.name || '')
+const taskCompany = computed(() => Object.fromEntries(tasks.tasks.map(t => [t.id, t.company_id])))
+const split = computed(() => splitBlocks(blocks.list, taskCompany.value, cid.value))
+const myBlocks = computed(() => split.value.mine) // 同公司才檢查重疊
+const otherBlocks = computed(() => split.value.others)
+const otherName = b => companies.label(taskCompany.value[b.task_id]).name
 
 const hh = h => `${String(h).padStart(2, '0')}:00`
 
@@ -151,11 +173,18 @@ let timer
 const isToday = d => sameDay(d, now.value)
 
 /* 本週時段 */
-const weekBlocks = computed(() => {
+const inWeek = list => {
   const end = addDays(ws.value, 7)
-  return blocks.list.filter(b => { const s = new Date(b.start_at); return s >= ws.value && s < end })
-})
+  return list.filter(b => { const s = new Date(b.start_at); return s >= ws.value && s < end })
+}
+const weekBlocks = computed(() => inWeek(myBlocks.value))
 const dayBlocks = computed(() => days.value.map(d => weekBlocks.value.filter(b => sameDay(new Date(b.start_at), d))))
+const dayOthers = computed(() => {
+  const week = inWeek(otherBlocks.value)
+  return days.value.map(d => week.filter(b => sameDay(new Date(b.start_at), d)))
+})
+// 「忙碌」字在右下角：被自己的時段蓋到結束那一段時不顯示（右邊仍露出一條斜線）
+const coveredByMine = (o, i) => dayBlocks.value[i].some(m => new Date(m.start_at) < new Date(o.end_at) && new Date(m.end_at) >= new Date(o.end_at))
 const weekMinutes = computed(() => weekBlocks.value.reduce((n, b) => n + minutesOf(b), 0))
 
 /* 顯示範圍：記在瀏覽器；有時段在範圍外時自動撐開 */
@@ -197,13 +226,20 @@ const isResizing = b => resizing.value?.b.id === b.id
 const startOf = b => isResizing(b) ? resizing.value.start : blockSlots(b).start
 const lenOf = b => isResizing(b) ? resizing.value.len : blockSlots(b).len
 const blockRange = b => { const s = startOf(b); return `${formatSlot(s)}–${formatSlot(s + lenOf(b))}` }
+const blockRangeOf = b => { const { start, len } = blockSlots(b); return `${formatSlot(start)}–${formatSlot(start + len)}` }
 function blockStyle (b) {
   const s = startOf(b)
+  const day = dayOthers.value[days.value.findIndex(d => sameDay(new Date(b.start_at), d))] || []
   return {
     top: `${(s - view.value.start * 2) * ROW + 1}px`,
     height: `${lenOf(b) * ROW - 3}px`,
-    background: projects.label(taskOf(b)?.project_id).color // 時段顏色依專案（需求書 10.4）
+    background: projects.label(taskOf(b)?.project_id).color, // 時段顏色依專案（需求書 10.4）
+    right: overlapsAny(b, day) ? '22px' : undefined // 和其他公司重疊：右邊露出斜線
   }
+}
+function busyStyle (o) {
+  const { start, len } = blockSlots(o)
+  return { top: `${(start - view.value.start * 2) * ROW + 1}px`, height: `${len * ROW - 3}px` }
 }
 
 /*
@@ -273,7 +309,7 @@ function targetAt (el, x, y) {
   const slot = Math.min(Math.max(view.value.start * 2 + Math.floor(top / ROW) - grab, 0), SLOTS_PER_DAY - len)
   const start = slotTime(days.value[day], slot)
   const end = slotTime(days.value[day], slot + len)
-  return { day, slot, len, start, end, bad: overlaps(blocks.list, start, end, block?.id) }
+  return { day, slot, len, start, end, bad: overlaps(myBlocks.value, start, end, block?.id) }
 }
 
 // 拖到邊緣時捲動頁面（上下）與時程表（左右）
@@ -354,8 +390,8 @@ async function onResizeEnd () {
   const start = slotTime(day, r.start)
   const end = slotTime(day, r.start + r.len)
   try {
-    if (overlaps(blocks.list, start, end, r.b.id)) {
-      $q.notify({ type: 'warning', message: '這段時間已經排了其他任務' })
+    if (overlaps(myBlocks.value, start, end, r.b.id)) {
+      $q.notify({ type: 'warning', message: '這段時間已經排了這家公司的其他任務' })
     } else {
       await blocks.update(r.b, start, end)
     }
@@ -392,10 +428,11 @@ function openTask (b) {
 /* 左側：未完成任務 */
 const search = ref('')
 const projectFilter = ref('all')
+watch(cid, () => { projectFilter.value = 'all' })
 const pool = computed(() => {
   const q = (search.value || '').trim().toLowerCase()
   const end = addDays(ws.value, 7) // 這週結束前已開始的才列出
-  return sortTasks(tasks.tasks.filter(t => !t.done && startedBefore(t, end) && matchProject(t, projectFilter.value) && (!q || t.title.toLowerCase().includes(q))))
+  return sortTasks(tasks.tasks.filter(t => !t.done && t.company_id === cid.value && startedBefore(t, end) && matchProject(t, projectFilter.value) && (!q || t.title.toLowerCase().includes(q))))
 })
 
 onMounted(() => {
@@ -481,6 +518,18 @@ onUnmounted(() => {
   color: var(--on-color); cursor: grab; z-index: 1;
 }
 .block:hover, .block.resizing { z-index: 3; }
+.busy {
+  position: absolute; left: 4px; right: 4px; box-sizing: border-box; z-index: 0;
+  border: 2px dashed var(--sub); border-radius: 12px;
+  background: repeating-linear-gradient(135deg, var(--grid) 0 6px, var(--surface) 6px 12px);
+  display: flex; align-items: flex-end; justify-content: flex-end; padding: 2px 6px;
+}
+.busy-label { font-size: 11px; font-weight: 700; color: var(--ink); background: var(--surface); padding: 0 4px; border-radius: 4px; }
+.legend { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.busy-sample {
+  width: 28px; height: 14px; border-radius: 5px; border: 2px dashed var(--sub);
+  background: repeating-linear-gradient(135deg, var(--grid) 0 5px, var(--surface) 5px 10px);
+}
 .block.moving { opacity: .35; }
 .block.done { opacity: .5; }
 .block.done .block-title { text-decoration: line-through; }

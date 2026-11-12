@@ -48,9 +48,14 @@ class TimeBlockServiceTest {
                 tasks.stream().filter(t -> t.id.equals(inv.getArgument(0))).findFirst());
         when(taskRepo.findByUserIdAndDeletedAtIsNotNullOrderByDeletedAtDesc(anyString())).thenAnswer(inv ->
                 tasks.stream().filter(t -> t.deletedAt != null && t.userId.equals(inv.getArgument(0))).toList());
+        when(taskRepo.findByUserIdAndDeletedAtIsNull(anyString())).thenAnswer(inv ->
+                tasks.stream().filter(t -> t.deletedAt == null && t.userId.equals(inv.getArgument(0))).toList());
         tasks.add(task("A", ME));
         tasks.add(task("B", ME));
         tasks.add(task("X", OTHER));
+        Task c = task("C", ME);
+        c.companyId = "k2"; // 另一家公司
+        tasks.add(c);
     }
 
     private static final String ME = "u1";
@@ -60,6 +65,7 @@ class TimeBlockServiceTest {
         Task t = new Task();
         t.id = id;
         t.userId = userId;
+        t.companyId = "k1";
         return t;
     }
 
@@ -98,6 +104,17 @@ class TimeBlockServiceTest {
         tasks.get(0).deletedAt = null;
         assertEquals(1, service.dropConflicts(ME, "A"));
         assertEquals(2, service.list(ME).size());
+    }
+
+    @Test
+    void otherCompanyMayOverlapAndMoveCheck() {
+        create("A", at(9, 0), at(10, 0));
+        create("C", at(9, 0), at(10, 0)); // 不同公司同一時段可以（需求書 12.5）
+        assertThrows(ResponseStatusException.class, () -> create("B", at(9, 30), at(10, 30)), "同公司仍不可重疊");
+        // A 要搬到 C 的公司會撞到；搬到沒有時段的公司不會
+        assertEquals(1, service.clashesIfMoved(ME, List.of("A"), "k2").size());
+        assertEquals(0, service.clashesIfMoved(ME, List.of("A"), "k3").size());
+        assertEquals(409, TimeBlockService.clashError(service.clashesIfMoved(ME, List.of("A"), "k2")).getStatusCode().value());
     }
 
     @Test

@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -76,8 +77,9 @@ public class TaskController {
         service.purge(user.id, id);
     }
 
+    /** company_id：只清空這家公司的（回收桶依目前公司顯示，需求書 12.4）；不帶則全部。 */
     @DeleteMapping("/trash")
-    public void purgeAll(@RequestAttribute(AuthFilter.USER) User user) {
-        service.purgeAll(user.id);
+    public void purgeAll(@RequestAttribute(AuthFilter.USER) User user, @RequestParam(name = "company_id", required = false) String companyId) {
+        service.purgeAll(user.id, companyId);
     }
 }

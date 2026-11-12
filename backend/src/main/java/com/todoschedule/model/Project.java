@@ -15,6 +15,9 @@ public class Project {
     /** 擁有者（users 的 _id）。 */
     @Field("user_id")
     public String userId;
+    /** 所屬公司（必填，需求書 12.8）。 */
+    @Field("company_id")
+    public String companyId;
     public String name;
     /** 例如 #8FD3FF；時程表時段用這個顏色。 */
     public String color;

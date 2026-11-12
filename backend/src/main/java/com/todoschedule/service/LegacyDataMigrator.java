@@ -21,10 +21,17 @@ public class LegacyDataMigrator {
 
     private final MongoTemplate mongo;
     private final ProjectMigrator projects;
+    private final CompanyMigrator companies;
 
-    public LegacyDataMigrator(MongoTemplate mongo, ProjectMigrator projects) {
+    public LegacyDataMigrator(MongoTemplate mongo, ProjectMigrator projects, CompanyMigrator companies) {
         this.mongo = mongo;
         this.projects = projects;
+        this.companies = companies;
+    }
+
+    /** 每位 active 使用者登入時：確保至少有一家公司，沒有公司的專案 / 任務歸過去（需求書 12.8）。 */
+    public void prepare(String userId) {
+        companies.migrate(userId);
     }
 
     public void claim(String adminId) {
@@ -32,6 +39,7 @@ public class LegacyDataMigrator {
             mongo.updateMulti(query(where("user_id").exists(false)), Update.update("user_id", adminId), collection);
         }
         projects.migrate(adminId); // 剛歸屬的分類也要掛上專案
+        companies.migrate(adminId);
         Settings legacy = mongo.findById(LEGACY_SETTINGS_ID, Settings.class);
         if (legacy == null) return;
         if (mongo.findById(adminId, Settings.class) == null) {

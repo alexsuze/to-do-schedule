@@ -1,8 +1,10 @@
 package com.todoschedule.service;
 
 import com.todoschedule.model.Category;
+import com.todoschedule.model.Company;
 import com.todoschedule.model.Project;
 import com.todoschedule.model.Task;
+import com.todoschedule.model.TimeBlock;
 import com.todoschedule.repository.CategoryRepository;
 import com.todoschedule.repository.ProjectRepository;
 import com.todoschedule.repository.TaskRepository;
@@ -34,7 +36,9 @@ class ProjectServiceTest {
     private final ProjectRepository projectRepo = mock(ProjectRepository.class);
     private final CategoryRepository categoryRepo = mock(CategoryRepository.class);
     private final TaskRepository taskRepo = mock(TaskRepository.class);
-    private final ProjectService projects = new ProjectService(projectRepo, categoryRepo, taskRepo);
+    private final CompanyService companies = mock(CompanyService.class);
+    private final TimeBlockService blocks = mock(TimeBlockService.class);
+    private final ProjectService projects = new ProjectService(projectRepo, categoryRepo, taskRepo, companies, blocks);
     private final CategoryService categories = new CategoryService(categoryRepo, taskRepo, projects);
 
     private final List<Project> ps = new ArrayList<>();
@@ -42,6 +46,13 @@ class ProjectServiceTest {
     private final List<Task> ts = new ArrayList<>();
 
     ProjectServiceTest() {
+        for (String u : List.of(ME, OTHER)) {
+            for (String k : List.of("k1", "k2")) {
+                Company c = new Company();
+                c.id = k;
+                when(companies.get(u, k)).thenReturn(c);
+            }
+        }
         when(projectRepo.save(any(Project.class))).thenAnswer(inv -> {
             Project p = inv.getArgument(0);
             if (p.id == null) { p.id = "p" + (ps.size() + 1); ps.add(p); }
@@ -76,24 +87,24 @@ class ProjectServiceTest {
 
     @Test
     void createValidateAndArchive() {
-        assertThrows(ResponseStatusException.class, () -> projects.create(ME, new ProjectRequest(" ", "#FFFFFF", null)));
-        assertThrows(ResponseStatusException.class, () -> projects.create(ME, new ProjectRequest("樂天", "red", null)));
-        Project p = projects.create(ME, new ProjectRequest(" 樂天 ", "#8fd3ff", null));
+        assertThrows(ResponseStatusException.class, () -> projects.create(ME, new ProjectRequest(" ", "#FFFFFF", null, "k1")));
+        assertThrows(ResponseStatusException.class, () -> projects.create(ME, new ProjectRequest("樂天", "red", null, "k1")));
+        Project p = projects.create(ME, new ProjectRequest(" 樂天 ", "#8fd3ff", null, "k1"));
         assertEquals("樂天", p.name);
         assertEquals("#8FD3FF", p.color);
 
-        projects.update(ME, p.id, new ProjectRequest("樂天", "#8FD3FF", true));
+        projects.update(ME, p.id, new ProjectRequest("樂天", "#8FD3FF", true, null));
         assertTrue(p.archived);
-        projects.update(ME, p.id, new ProjectRequest("樂天", "#8FD3FF", null)); // null 不改封存狀態
+        projects.update(ME, p.id, new ProjectRequest("樂天", "#8FD3FF", null, null)); // null 不改封存狀態
         assertTrue(p.archived);
-        assertThrows(ResponseStatusException.class, () -> projects.update(OTHER, p.id, new ProjectRequest("改", "#8FD3FF", null)));
+        assertThrows(ResponseStatusException.class, () -> projects.update(OTHER, p.id, new ProjectRequest("改", "#8FD3FF", null, null)));
     }
 
     @Test
     void categoryMustBelongToOwnProjectAndMoveCarriesTasks() {
-        Project a = projects.create(ME, new ProjectRequest("A", "#8FD3FF", null));
-        Project b = projects.create(ME, new ProjectRequest("B", "#8EE3B8", null));
-        Project theirs = projects.create(OTHER, new ProjectRequest("X", "#8EE3B8", null));
+        Project a = projects.create(ME, new ProjectRequest("A", "#8FD3FF", null, "k1"));
+        Project b = projects.create(ME, new ProjectRequest("B", "#8EE3B8", null, "k1"));
+        Project theirs = projects.create(OTHER, new ProjectRequest("X", "#8EE3B8", null, "k1"));
 
         assertThrows(ResponseStatusException.class, () -> categories.create(ME, new CategoryRequest("KM", "#FFD966", null)), "沒選專案");
         assertThrows(ResponseStatusException.class, () -> categories.create(ME, new CategoryRequest("KM", "#FFD966", theirs.id)), "別人的專案");
@@ -106,8 +117,47 @@ class ProjectServiceTest {
     }
 
     @Test
+    void moveProjectToOtherCompany() {
+        Project a = projects.create(ME, new ProjectRequest("A", "#8FD3FF", null, "k1"));
+        Project b = projects.create(ME, new ProjectRequest("B", "#8EE3B8", null, "k2"));
+        Category km = categories.create(ME, new CategoryRequest("KM", "#FFD966", a.id));
+        Task t = task(a.id, km.id);
+        t.id = "t1";
+        t.companyId = "k1";
+
+        assertThrows(ResponseStatusException.class, () -> categories.update(ME, km.id, new CategoryRequest("KM", "#FFD966", b.id)), "分類不能跨公司移動");
+
+        TimeBlock clash = new TimeBlock();
+        clash.startAt = java.time.Instant.parse("2026-11-09T01:00:00Z");
+        clash.endAt = java.time.Instant.parse("2026-11-09T02:00:00Z");
+        when(blocks.clashesIfMoved(ME, List.of("t1"), "k2")).thenReturn(List.of(clash));
+        assertThrows(ResponseStatusException.class, () -> projects.update(ME, a.id, new ProjectRequest("A", "#8FD3FF", null, "k2")), "撞到時段");
+        assertEquals("k1", a.companyId);
+        assertEquals("k1", t.companyId);
+
+        when(blocks.clashesIfMoved(ME, List.of("t1"), "k2")).thenReturn(List.of());
+        projects.update(ME, a.id, new ProjectRequest("A", "#8FD3FF", null, "k2"));
+        assertEquals("k2", a.companyId);
+        assertEquals("k2", t.companyId, "任務跟著專案搬");
+    }
+
+    @Test
+    void reorderWithinCompanyKeepsOthers() {
+        Project a = projects.create(ME, new ProjectRequest("A", "#8FD3FF", null, "k1"));
+        Project x = projects.create(ME, new ProjectRequest("X", "#8FD3FF", null, "k2"));
+        Project b = projects.create(ME, new ProjectRequest("B", "#8FD3FF", null, "k1"));
+        when(projectRepo.findByUserIdOrderByOrderAsc(anyString())).thenAnswer(inv -> ps.stream()
+                .filter(p -> p.userId.equals(inv.getArgument(0))).sorted((p, q) -> p.order - q.order).toList());
+        projects.reorder(ME, List.of(b.id, a.id));
+        assertEquals(0, b.order);
+        assertEquals(1, x.order, "其他公司的專案位置不動");
+        assertEquals(2, a.order);
+        assertThrows(ResponseStatusException.class, () -> projects.reorder(ME, List.of("nope")));
+    }
+
+    @Test
     void deleteProjectKeepsTasksAsNoProject() {
-        Project a = projects.create(ME, new ProjectRequest("A", "#8FD3FF", null));
+        Project a = projects.create(ME, new ProjectRequest("A", "#8FD3FF", null, "k1"));
         Category km = categories.create(ME, new CategoryRequest("KM", "#FFD966", a.id));
         Task withCat = task(a.id, km.id);
         Task noCat = task(a.id, null);

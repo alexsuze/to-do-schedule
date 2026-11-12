@@ -7,6 +7,7 @@ import { DEFAULT_ARCHIVE_DAYS } from '../utils/task'
 const toRequest = t => ({
   title: t.title,
   description: t.description,
+  company_id: t.company_id || null,
   project_id: t.project_id || null,
   category_id: t.category_id || null,
   start_at: t.start_at || null,
@@ -77,9 +78,10 @@ export const useTasksStore = defineStore('tasks', {
       await api.delete(`/trash/${id}`)
       this.trash = this.trash.filter(t => t.id !== id)
     },
-    async purgeAll () {
-      await api.delete('/trash')
-      this.trash = []
+    // 只清空這家公司的
+    async purgeAll (companyId) {
+      await api.delete('/trash', { params: { company_id: companyId } })
+      this.trash = this.trash.filter(t => t.company_id !== companyId)
     }
   }
 })

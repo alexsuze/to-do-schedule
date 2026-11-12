@@ -22,6 +22,9 @@ public class Task {
     /** 擁有者（users 的 _id）。 */
     @Field("user_id")
     public String userId;
+    /** 所屬公司（必填）；有專案時必等於專案的公司（需求書 12.8）。 */
+    @Field("company_id")
+    public String companyId;
     public String title;
     public String description;
     /** 所屬專案，null＝無專案；有分類時必等於分類的專案。 */

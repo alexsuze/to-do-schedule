@@ -28,9 +28,11 @@ public class ProjectMigrator {
     private static final Logger log = LoggerFactory.getLogger(ProjectMigrator.class);
 
     private final MongoTemplate mongo;
+    private final CompanyMigrator companies;
 
-    public ProjectMigrator(MongoTemplate mongo) {
+    public ProjectMigrator(MongoTemplate mongo, CompanyMigrator companies) {
         this.mongo = mongo;
+        this.companies = companies;
     }
 
     /** 啟動後在背景跑一次，不擋啟動（本機沒有 Mongo 也能開）。 */
@@ -39,8 +41,9 @@ public class ProjectMigrator {
         new Thread(() -> {
             try {
                 migrateAll();
+                companies.migrateAll(); // 專案搬完再歸公司，剛建立的「一般」也會掛上
             } catch (RuntimeException e) {
-                log.warn("專案搬移失敗，下次啟動或管理員登入時會再試", e);
+                log.warn("專案 / 公司搬移失敗，下次啟動或管理員登入時會再試", e);
             }
         }, "project-migrator").start();
     }
