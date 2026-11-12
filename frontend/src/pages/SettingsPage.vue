@@ -258,7 +258,7 @@ async function toggleReminder (on) {
 }
 function testReminder () {
   if (permission.value !== 'granted') return
-  new Notification(reminderTitle('任務名稱', '專案名稱'), { body: '這是測試通知，正式提醒會顯示時段', icon: ICON })
+  new Notification(reminderTitle('任務名稱', '專案名稱', companyName.value || '公司名稱'), { body: '這是測試通知，正式提醒會顯示時段', icon: ICON })
 }
 
 /* 已完成任務封存天數：選了就存 */

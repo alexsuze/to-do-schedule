@@ -34,12 +34,13 @@ function markSent (key) {
   try { localStorage.setItem(SENT_KEY, JSON.stringify(sent)) } catch { /* 頂多重複提醒 */ }
 }
 
-let data = { blocks: [], tasks: [], projects: [] }
+let data = { blocks: [], tasks: [], projects: [], companies: [] }
 
+// 所有公司的時段都提醒，不管目前切到哪家（需求書 12.7）
 async function refresh () {
   try {
-    const [b, t, p] = await Promise.all(['/blocks', '/tasks', '/projects'].map(u => api.get(u, { silent: true })))
-    data = { blocks: b.data, tasks: t.data, projects: p.data }
+    const [b, t, p, c] = await Promise.all(['/blocks', '/tasks', '/projects', '/companies'].map(u => api.get(u, { silent: true })))
+    data = { blocks: b.data, tasks: t.data, projects: p.data, companies: c.data }
   } catch { /* 下次再試 */ }
 }
 
@@ -52,14 +53,15 @@ function check (onOpen) {
     if (sent[key] || !task || task.done) continue
     markSent(key)
     const project = data.projects.find(p => p.id === task.project_id)
+    const company = data.companies.find(c => c.id === task.company_id)
     const fmt = s => new Date(s).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', hour12: false })
     // tag 相同時多個分頁同時跳也只會留一則
-    const n = new Notification(reminderTitle(task.title, project?.name), { body: `${fmt(b.start_at)} – ${fmt(b.end_at)}`, icon: ICON, tag: key })
-    n.onclick = () => { window.focus(); onOpen(); n.close() }
+    const n = new Notification(reminderTitle(task.title, project?.name, company?.name), { body: `${fmt(b.start_at)} – ${fmt(b.end_at)}`, icon: ICON, tag: key })
+    n.onclick = () => { window.focus(); onOpen(task.company_id); n.close() }
   }
 }
 
-/** 開始提醒；回傳停止用的函式。changed：本機改了時段時重新讀取 */
+/** 開始提醒；回傳停止用的函式。onOpen(companyId)：點通知時；changed：本機改了時段時重新讀取 */
 export function startReminder (onOpen, changed) {
   refresh().then(() => check(onOpen))
   const timers = [setInterval(() => check(onOpen), CHECK_MS), setInterval(refresh, REFRESH_MS)]

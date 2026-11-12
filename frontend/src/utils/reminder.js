@@ -13,7 +13,7 @@ export function dueBlocks (blocks, now, leadMin) {
   })
 }
 
-/** 通知標題：【專案名】任務名 即將開始 */
-export function reminderTitle (taskTitle, projectName) {
-  return `${projectName ? `【${projectName}】` : ''}${taskTitle} 即將開始`
+/** 通知標題：〔公司名〕【專案名】任務名 即將開始（需求書 12.7） */
+export function reminderTitle (taskTitle, projectName, companyName) {
+  return `${companyName ? `〔${companyName}〕` : ''}${projectName ? `【${projectName}】` : ''}${taskTitle} 即將開始`
 }

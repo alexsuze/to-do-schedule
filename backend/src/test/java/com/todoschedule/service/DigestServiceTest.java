@@ -1,6 +1,7 @@
 package com.todoschedule.service;
 
 import com.todoschedule.config.AppProperties;
+import com.todoschedule.model.Company;
 import com.todoschedule.model.Settings;
 import com.todoschedule.model.Task;
 import com.todoschedule.model.TimeBlock;
@@ -34,7 +35,8 @@ class DigestServiceTest {
     private final TaskRepository taskRepo = mock(TaskRepository.class);
     private final TimeBlockService blocks = mock(TimeBlockService.class);
     private final EmailService email = mock(EmailService.class);
-    private final DigestService service = new DigestService(settings, users, taskRepo, blocks, email,
+    private final CompanyService companies = mock(CompanyService.class);
+    private final DigestService service = new DigestService(settings, users, taskRepo, blocks, companies, email,
             new AppProperties(null, null, "https://example.test", null, false));
     private final List<Task> tasks = new ArrayList<>();
     private final Settings s = new Settings();
@@ -47,6 +49,14 @@ class DigestServiceTest {
         me.id = "u1";
         me.email = "me@example.test";
         s.digestEnabled = true;
+        when(companies.list("u1")).thenReturn(List.of(company("kA", "A 公司"), company("kB", "B 公司")));
+    }
+
+    private static Company company(String id, String name) {
+        Company c = new Company();
+        c.id = id;
+        c.name = name;
+        return c;
     }
 
     /** 台北時間 2026-10-28 的 h:m（day 為相對天數） */
@@ -60,6 +70,7 @@ class DigestServiceTest {
         t.title = title;
         t.deadline = deadline == null ? null : deadline.toInstant();
         t.done = done;
+        t.companyId = "kA";
         return t;
     }
 
@@ -87,22 +98,46 @@ class DigestServiceTest {
                 block("e", at(-3, 9, 0), at(-3, 10, 0)))); // 上週日：不算
 
         DigestService.Digest d = service.build("u1", at(0, 8, 0).toInstant());
-        assertEquals(List.of("18:00 今天下午到期"), d.dueToday());
-        assertEquals(List.of("10/27 18:00 昨天到期"), d.overdue());
-        assertEquals(List.of("09:00–10:00 今天下午到期", "13:00–14:30 排程任務"), d.schedule());
+        assertEquals(1, d.sections().size(), "B 公司沒有內容不列");
+        DigestService.Section a = d.sections().get(0);
+        assertEquals("A 公司", a.company());
+        assertEquals(List.of("18:00 今天下午到期"), a.dueToday());
+        assertEquals(List.of("10/27 18:00 昨天到期"), a.overdue());
+        assertEquals(List.of("09:00–10:00 今天下午到期", "13:00–14:30 排程任務"), a.schedule());
         assertEquals("[每日摘要] 10/28（三） 今日到期 1 項、逾期 1 項、排程 2 段", service.subject(d));
         // 週三寄：只算週一 2.5h + 週二 1h，今天的 2.5h 不算
-        assertEquals("本週累計工時 3.5h（10/26–10/27）", service.weekLine(d));
+        assertEquals("本週累計工時 3.5h（10/26–10/27）", service.weekLine(a, d.day()));
+    }
+
+    @Test
+    void groupedByCompanyInOrder() {
+        Task b = task("b", "B 的到期", at(0, 18, 0), false);
+        b.companyId = "kB";
+        tasks.add(b);
+        tasks.add(task("a", "A 的逾期", at(-1, 18, 0), false));
+        tasks.add(task("x", "<script>", at(0, 20, 0), false));
+        DigestService.Digest d = service.build("u1", at(0, 8, 0).toInstant());
+        assertEquals(List.of("A 公司", "B 公司"), d.sections().stream().map(DigestService.Section::company).toList(), "依公司排序");
+        assertEquals("[每日摘要] 10/28（三） 今日到期 2 項、逾期 1 項、排程 0 段", service.subject(d), "主旨為合計");
+        String html = service.html(d);
+        assertTrue(html.indexOf("A 公司") < html.indexOf("B 公司"));
+        assertTrue(html.contains("&lt;script&gt;") && !html.contains("<script>"), "標題已跳脫");
+        assertTrue(service.text(d).contains("■ B 公司"));
     }
 
     @Test
     void weekLineHiddenWithoutPastHours() {
         tasks.add(task("a", "今天到期", at(0, 18, 0), false));
         when(blocks.list("u1")).thenReturn(List.of(block("a", at(-2, 9, 0), at(-2, 10, 0))));
-        assertNull(service.weekLine(service.build("u1", at(-2, 8, 0).toInstant())), "週一寄：沒有已過去的天數");
-        assertEquals("本週累計工時 1h（10/26–10/26）", service.weekLine(service.build("u1", at(-1, 8, 0).toInstant())));
+        assertNull(weekLineAt(at(-2, 8, 0)), "週一寄：沒有已過去的天數");
+        assertEquals("本週累計工時 1h（10/26–10/26）", weekLineAt(at(-1, 8, 0)));
         when(blocks.list("u1")).thenReturn(List.of());
-        assertNull(service.weekLine(service.build("u1", at(0, 8, 0).toInstant())), "本週沒有工時");
+        assertNull(weekLineAt(at(0, 8, 0)), "本週沒有工時");
+    }
+
+    private String weekLineAt(ZonedDateTime t) {
+        DigestService.Digest d = service.build("u1", t.toInstant());
+        return service.weekLine(d.sections().get(0), d.day());
     }
 
     @Test
