@@ -3,12 +3,12 @@
     <div class="row items-end justify-between q-mb-lg" style="gap: 16px">
       <div>
         <h1 class="page-title">回收桶</h1>
-        <p class="text-sub q-ma-none" style="font-size: 15px">刪掉的任務會在這裡待 {{ TRASH_KEEP_DAYS }} 天，之後自動永久刪除</p>
+        <p class="text-sub q-ma-none" style="font-size: 15px">{{ companyName }}：刪掉的任務會在這裡待 {{ TRASH_KEEP_DAYS }} 天，之後自動永久刪除</p>
       </div>
-      <q-btn no-caps unelevated class="fun-btn bg-surface" icon="delete_sweep" label="清空回收桶" :disable="!tasks.trash.length" @click="emptyAll" />
+      <q-btn no-caps unelevated class="fun-btn bg-surface" icon="delete_sweep" label="清空回收桶" :disable="!list.length" @click="emptyAll" />
     </div>
 
-    <div v-if="!tasks.trash.length" class="fun-card q-pa-lg text-center text-sub" style="max-width: 480px">回收桶是空的</div>
+    <div v-if="!list.length" class="fun-card q-pa-lg text-center text-sub" style="max-width: 480px">回收桶是空的</div>
 
     <div v-else class="fun-card table-box">
       <table>
@@ -22,7 +22,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="t in tasks.trash" :key="t.id">
+          <tr v-for="t in list" :key="t.id">
             <td class="text-weight-bold">{{ t.title }}</td>
             <td style="max-width: 240px"><TaskTag :task="t" /></td>
             <td class="text-sub nowrap">{{ formatDateTime(t.deleted_at) }}</td>
@@ -41,11 +41,12 @@
 </template>
 
 <script setup>
-import { onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useQuasar } from 'quasar'
 import { useTasksStore } from '../stores/tasks'
 import { useCategoriesStore } from '../stores/categories'
 import { useProjectsStore } from '../stores/projects'
+import { useCompaniesStore } from '../stores/companies'
 import TaskTag from '../components/TaskTag.vue'
 import { formatDateTime, trashDaysLeft, TRASH_KEEP_DAYS } from '../utils/task'
 
@@ -53,6 +54,11 @@ const $q = useQuasar()
 const tasks = useTasksStore()
 const cats = useCategoriesStore()
 const projects = useProjectsStore()
+const companies = useCompaniesStore()
+
+// 只列出目前公司的（需求書 12.4）
+const companyName = computed(() => companies.current?.name || '')
+const list = computed(() => tasks.trash.filter(t => t.company_id === companies.currentId))
 
 function confirm (title, message, ok) {
   return $q.dialog({
@@ -65,7 +71,7 @@ function confirm (title, message, ok) {
 async function restore (t) {
   const dropped = await tasks.restore(t.id)
   if (dropped) {
-    $q.notify({ type: 'warning', message: `已還原「${t.title}」，但有 ${dropped} 個時段在刪除期間被其他任務佔用，沒有還原`, timeout: 6000 })
+    $q.notify({ type: 'warning', message: `已還原「${t.title}」，但有 ${dropped} 個時段在刪除期間被這家公司的其他任務佔用，沒有還原`, timeout: 6000 })
   } else {
     $q.notify({ type: 'positive', message: `已還原「${t.title}」` })
   }
@@ -76,7 +82,7 @@ function purge (t) {
 }
 
 function emptyAll () {
-  confirm('清空回收桶', `回收桶裡的 ${tasks.trash.length} 個任務會全部永久刪除，確定嗎？`, '全部刪除').onOk(() => tasks.purgeAll())
+  confirm('清空回收桶', `${companyName.value}回收桶裡的 ${list.value.length} 個任務會全部永久刪除，確定嗎？`, '全部刪除').onOk(() => tasks.purgeAll(companies.currentId))
 }
 
 onMounted(() => Promise.all([tasks.loadTrash(), cats.load(), projects.load()]))

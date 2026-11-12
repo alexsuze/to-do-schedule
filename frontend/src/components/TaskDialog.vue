@@ -11,6 +11,20 @@
       <div class="dialog-body">
         <q-input v-model="form.title" label="標題" outlined autofocus maxlength="100" />
         <q-input v-model="form.description" label="描述" outlined type="textarea" autogrow input-style="min-height: 72px" />
+        <q-select
+          v-model="form.company_id" :options="companyOptions" label="公司" outlined emit-value map-options
+          :hint="task ? '換公司時專案、分類會清空，時段跟著搬過去' : ''" @update:model-value="onCompanyChange"
+        >
+          <template #option="{ itemProps, opt }">
+            <q-item v-bind="itemProps">
+              <q-item-section avatar><span class="company-chip" :style="{ background: opt.color }">{{ initialOf(opt.label) }}</span></q-item-section>
+              <q-item-section>{{ opt.label }}</q-item-section>
+            </q-item>
+          </template>
+          <template #selected-item="{ opt }">
+            <span class="row items-center no-wrap" style="gap: 8px"><span class="company-chip" :style="{ background: opt.color }">{{ initialOf(opt.label) }}</span>{{ opt.label }}</span>
+          </template>
+        </q-select>
         <div class="two-col">
           <q-select v-model="form.project_id" :options="projectOptions" label="專案" outlined emit-value map-options @update:model-value="onProjectChange">
             <template #option="{ itemProps, opt }">
@@ -89,6 +103,8 @@ import { useTasksStore } from '../stores/tasks'
 import { useCategoriesStore } from '../stores/categories'
 import { useProjectsStore } from '../stores/projects'
 import { useBlocksStore } from '../stores/blocks'
+import { useCompaniesStore } from '../stores/companies'
+import { initialOf } from '../utils/company'
 import { isoToLocal, localToIso, NO_PROJECT_COLOR, UNCATEGORIZED_COLOR } from '../utils/task'
 import { formatHours } from '../utils/timeline'
 import { resolveUnsaved, useUnsavedGuard } from '../utils/unsaved'
@@ -96,7 +112,8 @@ import { resolveUnsaved, useUnsavedGuard } from '../utils/unsaved'
 const props = defineProps({
   modelValue: Boolean,
   task: { type: Object, default: null },
-  presetProjectId: { type: String, default: null } // 新增時預先帶入的專案（例如目前篩選的專案）
+  presetProjectId: { type: String, default: null }, // 新增時預先帶入的專案（例如目前篩選的專案）
+  presetCompanyId: { type: String, default: null } // 新增時預先帶入的公司（目前公司；任務頁「全部公司」時為 null）
 })
 const emit = defineEmits(['update:modelValue'])
 
@@ -105,15 +122,26 @@ const tasks = useTasksStore()
 const cats = useCategoriesStore()
 const projects = useProjectsStore()
 const blocks = useBlocksStore()
+const companies = useCompaniesStore()
 
 const form = ref({ subtasks: [] })
 const newSub = ref('')
 const saving = ref(false)
 
-// 未封存的專案；任務原本屬於已封存專案時也列出，才不會被清掉
+// 未封存的公司；任務原本屬於已封存公司時也列出
+const companyOptions = computed(() => companies.list
+  .filter(c => !c.archived || c.id === form.value.company_id)
+  .map(c => ({ label: c.archived ? `${c.name}（已封存）` : c.name, value: c.id, color: c.color })))
+// 換公司：專案、分類都屬於原公司，一律清空
+function onCompanyChange () {
+  form.value.project_id = null
+  form.value.category_id = null
+}
+// 所選公司的未封存專案；任務原本屬於已封存專案時也列出，才不會被清掉
 const projectOptions = computed(() => [
   { label: '無專案', value: null, color: NO_PROJECT_COLOR },
   ...projects.list
+    .filter(p => p.company_id === form.value.company_id)
     .filter(p => !p.archived || p.id === form.value.project_id)
     .map(p => ({ label: p.archived ? `${p.name}（已封存）` : p.name, value: p.id, color: p.color }))
 ])
@@ -132,9 +160,11 @@ const doneCount = computed(() => form.value.subtasks.filter(s => s.done).length)
 const snapshot = ref('')
 function reset () {
   const t = props.task
+  const preset = props.presetProjectId ? projects.byId(props.presetProjectId) : null
   form.value = {
     title: t?.title || '',
     description: t?.description || '',
+    company_id: t ? (t.company_id || null) : (preset?.company_id || props.presetCompanyId),
     project_id: t ? (t.project_id || null) : props.presetProjectId,
     category_id: t?.category_id || null,
     start_at: isoToLocal(t?.start_at),
@@ -165,6 +195,10 @@ function addSub () {
 async function save (done) {
   if (!form.value.title.trim()) {
     $q.notify({ type: 'warning', message: '請輸入標題' })
+    return false
+  }
+  if (!form.value.company_id) {
+    $q.notify({ type: 'warning', message: '請選擇公司' })
     return false
   }
   const start = localToIso(form.value.start_at)
@@ -202,6 +236,10 @@ function remove () {
 <style scoped>
 .dialog-card { width: 620px; max-width: 95vw; padding: 24px 28px; display: flex; flex-direction: column; gap: 20px; }
 .dialog-body { display: flex; flex-direction: column; gap: 20px; }
+.company-chip {
+  width: 24px; height: 24px; flex-shrink: 0; border-radius: 8px; border: 2px solid #2A2633; color: var(--on-color);
+  display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px;
+}
 .two-col { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 @media (max-width: 600px) {
   .dialog-card { padding: 20px 16px; }

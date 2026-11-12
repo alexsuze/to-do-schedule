@@ -2,7 +2,7 @@
   <q-page class="page column q-gutter-y-lg" style="max-width: 860px">
     <div>
       <h1 class="page-title">設定</h1>
-      <p class="text-sub q-ma-none" style="font-size: 15px">外觀、提醒、封存、專案與分類、每日摘要信</p>
+      <p class="text-sub q-ma-none" style="font-size: 15px">外觀、提醒、封存、公司、專案與分類、每日摘要信</p>
     </div>
 
     <section class="fun-card q-pa-lg row items-center justify-between" style="gap: 16px" aria-label="外觀">
@@ -54,11 +54,40 @@
       />
     </section>
 
+    <section class="fun-card q-pa-lg column q-gutter-y-md" aria-label="公司管理">
+      <div>
+        <h2 class="section-title">公司管理</h2>
+        <div class="text-sub">公司 → 專案 → 分類 → 任務。每家公司的任務、時程表、統計分開看，用左上角切換。不再合作的公司可以封存：資料保留，切換選單裡不再出現。</div>
+      </div>
+      <draggable :list="companyRows" item-key="id" handle=".drag-handle" class="column q-gutter-y-sm" @end="onCompanyDrop">
+        <template #item="{ element: c }">
+          <div class="cat-row row items-center no-wrap" :class="{ archived: c.archived }" style="gap: 8px">
+            <q-icon name="drag_indicator" class="drag-handle" size="20px" aria-label="拖曳排序" />
+            <ColorPicker :model-value="c.color" :label="`改變「${c.name}」的顏色`" @pick="color => companies.update(c, { color })" />
+            <span class="col ellipsis" style="font-size: 16px">{{ c.name }}<span v-if="c.id === companies.currentId" class="current-tag">目前</span><span v-if="c.archived" class="archived-tag">已封存</span></span>
+            <span class="text-sub nowrap" style="font-size: 13px">{{ companyCount(c.id) }} 個任務</span>
+            <q-btn flat round icon="edit" :aria-label="`改名「${c.name}」`" @click="startRename('company', c)" />
+            <q-btn
+              flat round :icon="c.archived ? 'unarchive' : 'inventory_2'" :aria-label="c.archived ? `取消封存「${c.name}」` : `封存「${c.name}」`"
+              :disable="!c.archived && companies.active.length < 2" @click="companies.update(c, { archived: !c.archived })"
+            >
+              <q-tooltip>{{ c.archived ? '取消封存' : (companies.active.length < 2 ? '至少要保留一家未封存的公司' : '封存') }}</q-tooltip>
+            </q-btn>
+          </div>
+        </template>
+      </draggable>
+      <div class="row no-wrap" style="gap: 8px">
+        <q-input v-model="newCompanyName" dense outlined class="col" placeholder="新公司名稱，例如：A 公司" maxlength="30" @keydown.enter="addCompany" />
+        <q-btn no-caps unelevated class="fun-btn bg-accent-fun" icon="add" label="新增公司" @click="addCompany" />
+      </div>
+    </section>
+
     <section class="fun-card q-pa-lg column q-gutter-y-md" aria-label="專案管理">
       <div>
-        <h2 class="section-title">專案管理</h2>
-        <div class="text-sub">專案 → 分類 → 任務，工時以專案統計。做完的專案可以封存：選單裡不再出現，但工時和統計都保留。</div>
+        <h2 class="section-title">專案管理（{{ companyName }}）</h2>
+        <div class="text-sub">只列出{{ companyName }}的專案。專案 → 分類 → 任務，工時以專案統計。做完的專案可以封存：選單裡不再出現，但工時和統計都保留。專案可以移到其他公司，任務和時段會跟著搬。</div>
       </div>
+      <div v-if="!projectRows.length" class="text-sub">{{ companyName }}還沒有專案</div>
       <draggable :list="projectRows" item-key="id" handle=".drag-handle" class="column q-gutter-y-sm" @end="onProjectDrop">
         <template #item="{ element: p }">
           <div class="cat-row row items-center no-wrap" :class="{ archived: p.archived }" style="gap: 8px">
@@ -66,6 +95,18 @@
             <ColorPicker :model-value="p.color" :label="`改變「${p.name}」的顏色`" @pick="color => projects.update(p, { color })" />
             <span class="col ellipsis" style="font-size: 16px">{{ p.name }}<span v-if="p.archived" class="archived-tag">已封存</span></span>
             <span class="text-sub nowrap" style="font-size: 13px">{{ projectCount(p.id) }} 個任務</span>
+            <q-btn flat round icon="drive_file_move" :aria-label="`把「${p.name}」移到其他公司`" :disable="companies.active.length < 2">
+              <q-tooltip>移到其他公司</q-tooltip>
+              <q-menu anchor="bottom right" self="top right">
+                <q-list style="min-width: 180px">
+                  <q-item-label header>移到…</q-item-label>
+                  <q-item v-for="c in companies.active.filter(x => x.id !== p.company_id)" :key="c.id" v-close-popup clickable @click="moveProject(p, c)">
+                    <q-item-section avatar><span class="cat-dot" :style="{ background: c.color }" /></q-item-section>
+                    <q-item-section>{{ c.name }}</q-item-section>
+                  </q-item>
+                </q-list>
+              </q-menu>
+            </q-btn>
             <q-btn flat round icon="edit" :aria-label="`改名「${p.name}」`" @click="startRename('project', p)" />
             <q-btn flat round :icon="p.archived ? 'unarchive' : 'inventory_2'" :aria-label="p.archived ? `取消封存「${p.name}」` : `封存「${p.name}」`" @click="projects.update(p, { archived: !p.archived })">
               <q-tooltip>{{ p.archived ? '取消封存' : '封存' }}</q-tooltip>
@@ -82,10 +123,10 @@
 
     <section class="fun-card q-pa-lg column q-gutter-y-md" aria-label="分類管理">
       <div>
-        <h2 class="section-title">分類管理</h2>
+        <h2 class="section-title">分類管理（{{ companyName }}）</h2>
         <div class="text-sub">分類掛在專案底下。移到其他專案時，分類裡的任務會跟著移過去；刪除分類後任務變成「未分類」，不會被刪掉。</div>
       </div>
-      <div v-if="!projects.list.length" class="text-sub">先新增一個專案，才能建立分類</div>
+      <div v-if="!companyProjects.length" class="text-sub">先新增一個專案，才能建立分類</div>
       <div v-for="g in catGroups" :key="g.project.id" class="column" style="gap: 8px">
         <div class="row items-center no-wrap text-weight-bold" style="gap: 8px; font-size: 15px">
           <span class="cat-dot" :style="{ background: g.project.color }" />{{ g.project.name }}
@@ -99,12 +140,12 @@
               <ColorPicker :model-value="c.color" :label="`改變「${c.name}」的顏色`" @pick="color => cats.update(c, { color })" />
               <span class="col ellipsis" style="font-size: 16px">{{ c.name }}</span>
               <span class="text-sub nowrap" style="font-size: 13px">{{ countOf(c.id) }} 個任務</span>
-              <q-btn flat round icon="drive_file_move" :aria-label="`把「${c.name}」移到其他專案`" :disable="projects.list.length < 2">
+              <q-btn flat round icon="drive_file_move" :aria-label="`把「${c.name}」移到其他專案`" :disable="companyProjects.length < 2">
                 <q-tooltip>移到其他專案</q-tooltip>
                 <q-menu anchor="bottom right" self="top right">
                   <q-list style="min-width: 180px">
                     <q-item-label header>移到…</q-item-label>
-                    <q-item v-for="p in projects.list.filter(x => x.id !== c.project_id)" :key="p.id" v-close-popup clickable @click="moveCategory(c, p)">
+                    <q-item v-for="p in companyProjects.filter(x => x.id !== c.project_id)" :key="p.id" v-close-popup clickable @click="moveCategory(c, p)">
                       <q-item-section avatar><span class="cat-dot" :style="{ background: p.color }" /></q-item-section>
                       <q-item-section>{{ p.name }}{{ p.archived ? '（已封存）' : '' }}</q-item-section>
                     </q-item>
@@ -117,8 +158,8 @@
           </template>
         </draggable>
       </div>
-      <div v-if="projects.list.length" class="row no-wrap" style="gap: 8px">
-        <q-select v-model="newCatProject" :options="projects.active.map(p => ({ label: p.name, value: p.id }))" emit-value map-options dense outlined label="專案" style="min-width: 140px" />
+      <div v-if="companyProjects.length" class="row no-wrap" style="gap: 8px">
+        <q-select v-model="newCatProject" :options="activeProjects.map(p => ({ label: p.name, value: p.id }))" emit-value map-options dense outlined label="專案" style="min-width: 140px" />
         <q-input v-model="newName" dense outlined class="col" placeholder="新分類名稱，例如：KM" maxlength="30" @keydown.enter="add" />
         <q-btn no-caps unelevated class="fun-btn bg-accent-fun" icon="add" label="新增分類" @click="add" />
       </div>
@@ -171,6 +212,7 @@ import api from '../services/api'
 import { useCategoriesStore } from '../stores/categories'
 import { useProjectsStore } from '../stores/projects'
 import { useTasksStore } from '../stores/tasks'
+import { useCompaniesStore } from '../stores/companies'
 import { ARCHIVE_DAY_OPTIONS, PALETTE } from '../utils/task'
 import { setDark } from '../utils/theme'
 import { resolveUnsaved, useUnsavedGuard } from '../utils/unsaved'
@@ -182,6 +224,31 @@ const $q = useQuasar()
 const cats = useCategoriesStore()
 const projects = useProjectsStore()
 const tasks = useTasksStore()
+const companies = useCompaniesStore()
+
+/* 公司（需求書 12.3）：專案與分類只列出目前公司的 */
+const cid = computed(() => companies.currentId)
+const companyName = computed(() => companies.current?.name || '')
+const companyProjects = computed(() => projects.list.filter(p => p.company_id === cid.value))
+const activeProjects = computed(() => companyProjects.value.filter(p => !p.archived))
+const companyCount = id => tasks.tasks.filter(t => t.company_id === id).length
+
+const companyRows = ref([])
+watch(() => companies.list, l => { companyRows.value = [...l] }, { immediate: true, deep: true })
+function onCompanyDrop () {
+  companies.reorder(companyRows.value.map(c => c.id)).catch(() => { companyRows.value = [...companies.list] })
+}
+const newCompanyName = ref('')
+async function addCompany () {
+  const name = newCompanyName.value.trim()
+  if (!name) return
+  await companies.create(name, PALETTE[(companies.list.length + 5) % PALETTE.length])
+  newCompanyName.value = ''
+}
+async function moveProject (p, c) {
+  await projects.update(p, { company_id: c.id })
+  await tasks.load() // 任務跟著專案換了公司
+}
 
 /* 工作開始前提醒：開啟時先向瀏覽器要通知權限 */
 const LEAD_OPTIONS = [1, 3, 5, 10, 15, 30].map(m => ({ label: `${m} 分鐘前`, value: m }))
@@ -206,17 +273,17 @@ const projectCount = id => tasks.tasks.filter(t => t.project_id === id).length
 
 /* 專案：draggable 需要可變陣列，store 變動時重建本地副本 */
 const projectRows = ref([])
-watch(() => projects.list, l => { projectRows.value = [...l] }, { immediate: true, deep: true })
+watch(companyProjects, l => { projectRows.value = [...l] }, { immediate: true, deep: true })
 
 function onProjectDrop () {
-  projects.reorder(projectRows.value.map(p => p.id)).catch(() => { projectRows.value = [...projects.list] })
+  projects.reorder(projectRows.value.map(p => p.id)).catch(() => { projectRows.value = [...companyProjects.value] })
 }
 
 const newProjectName = ref('')
 async function addProject () {
   const name = newProjectName.value.trim()
   if (!name) return
-  const p = await projects.create(name, PALETTE[projects.list.length % PALETTE.length])
+  const p = await projects.create(name, PALETTE[projects.list.length % PALETTE.length], cid.value)
   newProjectName.value = ''
   if (!newCatProject.value) newCatProject.value = p.id
 }
@@ -234,10 +301,10 @@ function removeProject (p) {
   })
 }
 
-/* 分類：依專案分組，各組可拖曳排序；整體順序 = 專案順序依序串起各組 */
+/* 分類：依專案分組（只有目前公司），各組可拖曳排序；順序 = 專案順序依序串起各組 */
 const catGroups = ref([])
-watch(() => [projects.list, cats.list], () => {
-  catGroups.value = projects.list.map(p => ({ project: p, rows: cats.list.filter(c => c.project_id === p.id) }))
+watch(() => [companyProjects.value, cats.list], () => {
+  catGroups.value = companyProjects.value.map(p => ({ project: p, rows: cats.list.filter(c => c.project_id === p.id) }))
 }, { immediate: true, deep: true })
 
 function onCategoryDrop () {
@@ -251,7 +318,7 @@ async function moveCategory (c, p) {
 
 const newName = ref('')
 const newCatProject = ref(null)
-watch(() => projects.active, a => {
+watch(activeProjects, a => {
   if (!a.some(p => p.id === newCatProject.value)) newCatProject.value = a[0]?.id || null
 }, { immediate: true })
 async function add () {
@@ -265,9 +332,10 @@ async function add () {
   newName.value = ''
 }
 
-/* 改名：renaming = { kind: 'project' | 'category', item, name } */
+/* 改名：renaming = { kind: 'company' | 'project' | 'category', item, name } */
 const renaming = ref(null)
-const renameNoun = computed(() => renaming.value?.kind === 'project' ? '專案' : '分類')
+const RENAME = { company: { noun: '公司' }, project: { noun: '專案' }, category: { noun: '分類' } }
+const renameNoun = computed(() => RENAME[renaming.value?.kind]?.noun || '')
 const startRename = (kind, item) => { renaming.value = { kind, item, name: item.name } }
 const renameDirty = () => !!renaming.value && renaming.value.name.trim() !== renaming.value.item.name
 
@@ -279,7 +347,7 @@ async function saveRename () {
     $q.notify({ type: 'warning', message: `請輸入${renameNoun.value}名稱` })
     return false
   }
-  if (name !== r.item.name) await (r.kind === 'project' ? projects : cats).update(r.item, { name })
+  if (name !== r.item.name) await ({ company: companies, project: projects, category: cats })[r.kind].update(r.item, { name })
   renaming.value = null
   return true
 }
@@ -331,18 +399,19 @@ async function sendTest () {
   } finally { sending.value = false }
 }
 
-/* 換頁時：還沒按新增的專案 / 分類名稱、還沒儲存的改名、還沒儲存的摘要設定 */
+/* 換頁時：還沒按新增的公司 / 專案 / 分類名稱、還沒儲存的改名、還沒儲存的摘要設定 */
 useUnsavedGuard(
-  () => !!newProjectName.value.trim() || !!newName.value.trim() || renameDirty() || mailDirty(),
+  () => !!newCompanyName.value.trim() || !!newProjectName.value.trim() || !!newName.value.trim() || renameDirty() || mailDirty(),
   async () => {
     if (renameDirty() && !(await saveRename())) return false
+    if (newCompanyName.value.trim()) await addCompany()
     if (newProjectName.value.trim()) await addProject()
     if (newName.value.trim() && (await add()) === false) return false
     if (mailDirty()) await saveMail()
     return true
   },
   () => {
-    const pending = [newProjectName.value.trim(), newName.value.trim()].filter(Boolean)
+    const pending = [newCompanyName.value.trim(), newProjectName.value.trim(), newName.value.trim()].filter(Boolean)
     return pending.length && !renameDirty() && !mailDirty()
       ? `「${pending.join('」「')}」還沒按新增，要怎麼處理？`
       : undefined
@@ -361,7 +430,7 @@ function remove (c) {
   })
 }
 
-onMounted(() => Promise.all([projects.load(), cats.load(), tasks.load(), api.get('/settings').then(r => applySettings(r.data))]))
+onMounted(() => Promise.all([companies.load(), projects.load(), cats.load(), tasks.load(), api.get('/settings').then(r => applySettings(r.data))]))
 </script>
 
 <style scoped>
@@ -373,6 +442,7 @@ onMounted(() => Promise.all([projects.load(), cats.load(), tasks.load(), api.get
 .mail-grid > * { flex: 1 1 220px; }
 .cat-row { min-height: 52px; padding: 0 6px 0 10px; border-radius: 16px; border: 2px solid var(--line); background: var(--bg); }
 .cat-row.archived { opacity: .6; }
+.current-tag { margin-left: 8px; padding: 1px 8px; border-radius: 999px; border: 2px solid var(--line); background: var(--accent); color: var(--on-color); font-size: 11px; font-weight: 700; }
 .archived-tag { margin-left: 8px; padding: 1px 8px; border-radius: 999px; border: 2px solid var(--line); font-size: 11px; font-weight: 700; color: var(--sub); }
 .nowrap { white-space: nowrap; }
 </style>

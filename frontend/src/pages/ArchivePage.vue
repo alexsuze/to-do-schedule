@@ -4,14 +4,14 @@
       <div>
         <h1 class="page-title">封存</h1>
         <p class="text-sub q-ma-none" style="font-size: 15px">
-          完成超過 {{ tasks.archiveDays }} 天的任務會自動收到這裡（天數可在設定頁調整）；解除封存後重新計算
+          {{ companies.current?.name }}：完成超過 {{ tasks.archiveDays }} 天的任務會自動收到這裡（天數可在設定頁調整）；解除封存後重新計算
         </p>
       </div>
       <div class="row items-center" style="gap: 16px">
         <q-input v-model="search" outlined dense clearable placeholder="搜尋任務" aria-label="搜尋任務" style="min-width: 200px">
           <template #prepend><q-icon name="search" /></template>
         </q-input>
-        <ProjectFilter v-model="projectFilter" />
+        <ProjectFilter v-model="projectFilter" :company="companies.currentId" />
       </div>
     </div>
 
@@ -51,12 +51,13 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import { useTasksStore } from '../stores/tasks'
 import { useCategoriesStore } from '../stores/categories'
 import { useProjectsStore } from '../stores/projects'
 import { useBlocksStore } from '../stores/blocks'
+import { useCompaniesStore } from '../stores/companies'
 import { formatDateTime, isArchived, matchProject } from '../utils/task'
 import { formatHours } from '../utils/timeline'
 import TaskDialog from '../components/TaskDialog.vue'
@@ -68,12 +69,15 @@ const tasks = useTasksStore()
 const cats = useCategoriesStore()
 const projects = useProjectsStore()
 const blocks = useBlocksStore()
+const companies = useCompaniesStore()
 
 const search = ref('')
 const projectFilter = ref('all')
 
 // ponytail: 全部任務一次載入在前端篩選，封存累積到幾千筆再改後端分頁
-const archived = computed(() => tasks.tasks.filter(t => isArchived(t, tasks.archiveDays)))
+// 只列出目前公司的（需求書 12.4）；換公司時專案篩選回到全部
+const archived = computed(() => tasks.tasks.filter(t => t.company_id === companies.currentId && isArchived(t, tasks.archiveDays)))
+watch(() => companies.currentId, () => { projectFilter.value = 'all' })
 const shown = computed(() => {
   const q = (search.value || '').trim().toLowerCase()
   return archived.value

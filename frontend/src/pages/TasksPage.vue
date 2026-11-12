@@ -4,12 +4,12 @@
       <div>
         <h1 class="page-title">任務</h1>
         <p class="text-sub q-ma-none" style="font-size: 15px">
-          {{ openCount }} 個未完成，一張一張來就好<span v-if="hiddenCount">（已隱藏 {{ hiddenCount }} 個未開始）</span>
+          {{ scopeName }}：{{ openCount }} 個未完成，一張一張來就好<span v-if="hiddenCount">（已隱藏 {{ hiddenCount }} 個未開始）</span>
         </p>
       </div>
       <div class="row items-center" style="gap: 16px">
         <q-toggle v-model="showNotStarted" color="primary" label="顯示未開始" class="text-weight-bold" />
-        <ProjectFilter v-model="projectFilter" />
+        <ProjectFilter v-model="projectFilter" :company="scope" />
         <q-btn-toggle
           v-model="filter"
           class="fun-toggle"
@@ -36,7 +36,7 @@
         @click="open(t)" @keydown.enter="open(t)"
       >
         <div class="row items-center no-wrap">
-          <TaskTag :task="t" />
+          <TaskTag :task="t" :show-company="isAll" />
           <q-space />
           <q-btn
             v-if="t.done" flat round icon="inventory_2" class="q-mr-xs" aria-label="立即封存"
@@ -73,7 +73,7 @@
       </article>
     </div>
 
-    <TaskDialog v-model="dialog" :task="editing" :preset-project-id="presetProject" />
+    <TaskDialog v-model="dialog" :task="editing" :preset-project-id="presetProject" :preset-company-id="isAll ? null : scope" />
   </q-page>
 </template>
 
@@ -84,6 +84,8 @@ import { useTasksStore } from '../stores/tasks'
 import { useCategoriesStore } from '../stores/categories'
 import { useProjectsStore } from '../stores/projects'
 import { useBlocksStore } from '../stores/blocks'
+import { useCompaniesStore } from '../stores/companies'
+import { ALL_COMPANIES, inCompany } from '../utils/company'
 import { deadlineState, deadlineLabel, isArchived, notStarted, startLabel, matchProject, sortTasks, subtaskProgress } from '../utils/task'
 import { formatHours } from '../utils/timeline'
 import TaskDialog from '../components/TaskDialog.vue'
@@ -95,6 +97,13 @@ const tasks = useTasksStore()
 const cats = useCategoriesStore()
 const projects = useProjectsStore()
 const blocks = useBlocksStore()
+const companies = useCompaniesStore()
+
+// 任務頁可選「全部公司」（需求書 12.4）；換公司時專案篩選回到全部
+const scope = computed(() => companies.taskScope)
+const isAll = computed(() => scope.value === ALL_COMPANIES)
+const scopeName = computed(() => isAll.value ? '全部公司' : (companies.current?.name || ''))
+watch(scope, () => { projectFilter.value = 'all' })
 
 const FILTERS = [
   { label: '未完成', value: 'open' },
@@ -114,11 +123,11 @@ watch(showNotStarted, v => { try { localStorage.setItem(NOT_STARTED_KEY, v ? '1'
 
 // 封存的任務只出現在封存頁
 const matched = computed(() => tasks.tasks.filter(t =>
-  !isArchived(t, tasks.archiveDays) &&
+  inCompany(t, scope.value) && !isArchived(t, tasks.archiveDays) &&
   (filter.value === 'all' || (filter.value === 'done') === t.done) && matchProject(t, projectFilter.value)))
 const hiddenCount = computed(() => showNotStarted.value ? 0 : matched.value.filter(t => notStarted(t)).length)
 const shown = computed(() => sortTasks(showNotStarted.value ? matched.value : matched.value.filter(t => !notStarted(t))))
-const openCount = computed(() => tasks.tasks.filter(t => !t.done).length)
+const openCount = computed(() => tasks.tasks.filter(t => !t.done && inCompany(t, scope.value)).length)
 
 function pct (t) {
   const p = subtaskProgress(t)

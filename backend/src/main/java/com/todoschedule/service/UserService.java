@@ -65,6 +65,7 @@ public class UserService {
         }
         repo.save(u);
         if (u.admin) migrator.claim(u.id);
+        if (User.ACTIVE.equals(u.status)) migrator.prepare(u.id);
         if (isNew && User.PENDING.equals(u.status)) notifyAdmin(u);
 
         if (User.PENDING.equals(u.status)) {

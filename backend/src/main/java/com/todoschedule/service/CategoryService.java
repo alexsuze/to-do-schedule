@@ -51,7 +51,12 @@ public class CategoryService {
         Category c = get(userId, id);
         apply(c, req);
         if (req.projectId() != null && !req.projectId().equals(c.projectId)) {
-            c.projectId = projects.get(userId, req.projectId()).id;
+            var target = projects.get(userId, req.projectId());
+            var current = projects.get(userId, c.projectId);
+            if (!java.util.Objects.equals(target.companyId, current.companyId)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "分類只能移到同一家公司的專案");
+            }
+            c.projectId = target.id;
             // 任務跟著分類移到新專案
             List<Task> tasks = taskRepo.findByCategoryId(c.id);
             tasks.forEach(t -> t.projectId = c.projectId);
@@ -68,13 +73,17 @@ public class CategoryService {
         repo.deleteById(id);
     }
 
-    /** ids 為新的完整順序。 */
+    /** ids 為目前公司分類的新順序：沿用這些分類原本的排序位置重新分配，其他公司的分類不動。 */
     public List<Category> reorder(String userId, List<String> ids) {
         List<Category> all = list(userId);
-        if (ids == null || ids.size() != all.size() || !ids.containsAll(all.stream().map(c -> c.id).toList())) {
+        List<Category> picked = ids == null ? List.of() : ids.stream()
+                .map(id -> all.stream().filter(c -> c.id.equals(id)).findFirst().orElse(null)).toList();
+        if (picked.isEmpty() || picked.contains(null) || new java.util.HashSet<>(ids).size() != ids.size()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "分類順序與現有分類不符，請重新整理");
         }
-        all.forEach(c -> c.order = ids.indexOf(c.id));
+        for (int i = 0; i < all.size(); i++) all.get(i).order = i; // 先把舊資料可能重複的順序整理成連號
+        List<Integer> slots = picked.stream().map(c -> c.order).sorted().toList();
+        for (int i = 0; i < picked.size(); i++) picked.get(i).order = slots.get(i);
         repo.saveAll(all);
         return list(userId);
     }

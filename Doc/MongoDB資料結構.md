@@ -11,6 +11,7 @@ API JSON 欄位與 Mongo 欄位相同（snake_case）。
 |------|------|------|
 | _id | ObjectId | |
 | user_id | string | 擁有者（users 的 _id） |
+| company_id | string | 所屬公司（必填，v1.4）；有 project_id 時必等於該專案的公司 |
 | project_id | string / null | 所屬專案；null＝無專案。有 category_id 時必等於該分類的專案（v1.2） |
 | title | string | 1～100 字 |
 | description | string | 可空字串 |
@@ -38,7 +39,23 @@ API JSON 欄位與 Mongo 欄位相同（snake_case）。
 | order | int | 顯示順序，越小越前面 |
 
 刪除分類為直接刪除，該分類的任務（含回收桶中的）`category_id` 改為 null（`project_id` 不變）。
-分類換專案（移動）時，該分類所有任務的 `project_id` 一併改為新專案。
+分類換專案（移動）時，該分類所有任務的 `project_id` 一併改為新專案。分類只能移到同一家公司的專案（v1.4）。
+
+## companies（v1.4）
+公司：公司 → 專案 → 分類 → 任務。只是自己分類用，不與他人共用。
+
+| 欄位 | 型別 | 說明 |
+|------|------|------|
+| _id | ObjectId | |
+| user_id | string | 擁有者 |
+| name | string | 1～30 字 |
+| color | string | `#RRGGBB`（存大寫）；切換按鈕的方塊顏色 |
+| order | int | 顯示順序 |
+| archived | boolean | 封存：不出現在切換選單，資料保留；至少要留一家未封存 |
+
+- 不提供刪除（用封存代替）。
+- 使用者一家公司都沒有時（新使用者、舊資料），讀取公司列表或登入時自動建立「我的公司」（`#FFC49E`）。
+- 舊資料搬移（`CompanyMigrator`）：沒有 `company_id` 的專案歸到排序第一家未封存的公司；沒有 `company_id` 的任務有專案就用專案的公司，否則同上。伺服器啟動後背景執行一次（在 `ProjectMigrator` 之後）、每位 active 使用者登入時也會執行，可重複執行。
 
 ## projects（v1.2）
 專案：專案 → 分類 → 任務，工時以專案為統計主體。
@@ -47,12 +64,15 @@ API JSON 欄位與 Mongo 欄位相同（snake_case）。
 |------|------|------|
 | _id | ObjectId | |
 | user_id | string | 擁有者 |
+| company_id | string | 所屬公司（必填，v1.4） |
 | name | string | 1～30 字 |
 | color | string | `#RRGGBB`（存大寫）；時程表時段用此顏色 |
 | order | int | 顯示順序 |
 | archived | boolean | 封存：選單不出現，工時與統計保留 |
 
-- 刪除專案：底下分類一併刪除；任務保留並改為 `project_id = null`、`category_id = null`。
+- 刪除專案：底下分類一併刪除；任務保留並改為 `project_id = null`、`category_id = null`（公司不變）。
+- 換公司（移動，v1.4）：專案底下的任務（含回收桶中的）`company_id` 一併改為新公司；有效任務的時段會和新公司的時段重疊時拒絕（409）。
+- 排序：設定頁只送目前公司的專案 id，沿用它們原本的排序位置重新分配，其他公司的專案不動（分類同理）。
 - 舊資料搬移（`ProjectMigrator`）：沒有 `project_id` 的分類，依使用者建立專案「一般」並掛上，其任務 `project_id` 同步設定；伺服器啟動後背景執行一次、管理員登入時也會執行，可重複執行。
 
 ## time_blocks（階段 2）
@@ -66,8 +86,9 @@ API JSON 欄位與 Mongo 欄位相同（snake_case）。
 | start_at | Date | 對齊 30 分鐘 |
 | end_at | Date | 對齊 30 分鐘，與 start_at 同一天（以台北時間判斷），最晚到隔天 00:00 |
 
-- 同一任務可有多筆。同一使用者的時段之間不可重疊（不分任務；不同使用者互不影響）。
-- 所屬任務在回收桶時：時段保留但不回傳、不佔用時間；任務還原時，期間被其他時段佔用的會被刪除。
+- 同一任務可有多筆。同一使用者**同一家公司**的時段之間不可重疊（不分任務）；不同公司可以重疊（v1.4），不同使用者互不影響。
+- 不存公司：時段的公司＝所屬任務的 `company_id`。任務換公司時，它的時段會和新公司的時段重疊就拒絕（409）。
+- 所屬任務在回收桶時：時段保留但不回傳、不佔用時間；任務還原時，期間被同公司其他時段佔用的會被刪除。
 - 任務永久刪除時一併刪除。
 
 ## settings（階段 4，v1.1 改為每人一筆）

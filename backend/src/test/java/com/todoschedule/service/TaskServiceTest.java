@@ -1,9 +1,11 @@
 package com.todoschedule.service;
 
 import com.todoschedule.model.Category;
+import com.todoschedule.model.Company;
 import com.todoschedule.model.Project;
 import com.todoschedule.model.Task;
 import com.todoschedule.model.Task.Subtask;
+import com.todoschedule.model.TimeBlock;
 import com.todoschedule.repository.TaskRepository;
 import com.todoschedule.service.TaskService.TaskRequest;
 import org.junit.jupiter.api.Test;
@@ -33,7 +35,8 @@ class TaskServiceTest {
     private final CategoryService categories = mock(CategoryService.class);
     private final ProjectService projects = mock(ProjectService.class);
     private final TimeBlockService blocks = mock(TimeBlockService.class);
-    private final TaskService service = new TaskService(repo, categories, projects, blocks);
+    private final CompanyService companies = mock(CompanyService.class);
+    private final TaskService service = new TaskService(repo, categories, projects, blocks, companies);
     private final List<Task> tasks = new ArrayList<>();
 
     TaskServiceTest() {
@@ -49,9 +52,20 @@ class TaskServiceTest {
         c1.projectId = "p1";
         when(categories.find(anyString(), anyString())).thenReturn(Optional.empty());
         when(categories.find(ME, "c1")).thenReturn(Optional.of(c1));
+        Project p1 = new Project();
+        p1.id = "p1";
+        p1.companyId = "k1";
+        when(projects.get(ME, "p1")).thenReturn(p1);
         Project p2 = new Project();
         p2.id = "p2";
+        p2.companyId = "k2";
         when(projects.get(ME, "p2")).thenReturn(p2);
+        for (String k : List.of("k1", "k2")) {
+            Company c = new Company();
+            c.id = k;
+            when(companies.get(ME, k)).thenReturn(c);
+        }
+        when(companies.get(OTHER, "k1")).thenThrow(new ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST));
         when(projects.get(OTHER, "p2")).thenThrow(new ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST));
     }
 
@@ -62,18 +76,18 @@ class TaskServiceTest {
     }
 
     private static TaskRequest req(String title, boolean done) {
-        return new TaskRequest(title, null, null, null, null, null, null, done);
+        return new TaskRequest(title, null, "k1", null, null, null, null, null, done);
     }
 
     @Test
     void validatesAndCleansInput() {
         assertThrows(ResponseStatusException.class, () -> service.create(ME, req("  ", false)));
-        assertThrows(ResponseStatusException.class, () -> service.create(ME, new TaskRequest("A", null, null, "nope", null, null, null, false)));
-        assertThrows(ResponseStatusException.class, () -> service.create(OTHER, new TaskRequest("A", null, null, "c1", null, null, null, false)), "別人的分類");
-        assertThrows(ResponseStatusException.class, () -> service.create(OTHER, new TaskRequest("A", null, "p2", null, null, null, null, false)), "別人的專案");
+        assertThrows(ResponseStatusException.class, () -> service.create(ME, new TaskRequest("A", null, "k1", null, "nope", null, null, null, false)));
+        assertThrows(ResponseStatusException.class, () -> service.create(OTHER, new TaskRequest("A", null, "k1", null, "c1", null, null, null, false)), "別人的分類");
+        assertThrows(ResponseStatusException.class, () -> service.create(OTHER, new TaskRequest("A", null, "k1", "p2", null, null, null, null, false)), "別人的專案");
 
         // 有分類時專案以分類的專案為準（傳了不一樣的專案也會被修正）
-        Task t = service.create(ME, new TaskRequest(" 報表 ", null, "p2", "c1", null, null, List.of(sub(" 匯出 "), sub(" ")), false));
+        Task t = service.create(ME, new TaskRequest(" 報表 ", null, "k1", "p2", "c1", null, null, List.of(sub(" 匯出 "), sub(" ")), false));
         assertEquals(ME, t.userId);
         assertEquals("報表", t.title);
         assertEquals("c1", t.categoryId);
@@ -86,14 +100,37 @@ class TaskServiceTest {
     @Test
     void startMustNotBeAfterDeadline() {
         Instant d = Instant.parse("2026-11-05T10:00:00Z");
-        assertThrows(ResponseStatusException.class, () -> service.create(ME, new TaskRequest("A", null, null, null, d.plusSeconds(60), d, null, false)));
-        assertEquals(d, service.create(ME, new TaskRequest("A", null, null, null, d, d, null, false)).startAt);
+        assertThrows(ResponseStatusException.class, () -> service.create(ME, new TaskRequest("A", null, "k1", null, null, d.plusSeconds(60), d, null, false)));
+        assertEquals(d, service.create(ME, new TaskRequest("A", null, "k1", null, null, d, d, null, false)).startAt);
     }
 
     @Test
     void projectWithoutCategoryOrNone() {
-        assertEquals("p2", service.create(ME, new TaskRequest("A", null, "p2", null, null, null, null, false)).projectId);
+        assertEquals("p2", service.create(ME, new TaskRequest("A", null, "k1", "p2", null, null, null, null, false)).projectId);
         assertNull(service.create(ME, req("B", false)).projectId, "無專案");
+    }
+
+    @Test
+    void companyRequiredAndFollowsProject() {
+        assertThrows(ResponseStatusException.class, () -> service.create(ME, new TaskRequest("A", null, null, null, null, null, null, null, false)), "沒選公司");
+        assertThrows(ResponseStatusException.class, () -> service.create(OTHER, req("A", false)), "別人的公司");
+        assertEquals("k1", service.create(ME, req("A", false)).companyId);
+        // 有專案時以專案的公司為準
+        assertEquals("k2", service.create(ME, new TaskRequest("A", null, "k1", "p2", null, null, null, null, false)).companyId);
+    }
+
+    @Test
+    void changingCompanyChecksBlocks() {
+        Task t = service.create(ME, req("A", false));
+        TimeBlock b = new TimeBlock();
+        b.startAt = Instant.parse("2026-11-09T01:00:00Z");
+        b.endAt = Instant.parse("2026-11-09T02:00:00Z");
+        when(blocks.clashesIfMoved(ME, List.of(t.id), "k2")).thenReturn(List.of(b));
+        assertThrows(ResponseStatusException.class, () -> service.update(ME, t.id, new TaskRequest("A", null, "k2", null, null, null, null, null, false)));
+        assertEquals("k1", t.companyId, "撞到時不搬");
+        when(blocks.clashesIfMoved(ME, List.of(t.id), "k2")).thenReturn(List.of());
+        service.update(ME, t.id, new TaskRequest("A", null, "k2", null, null, null, null, null, false));
+        assertEquals("k2", t.companyId);
     }
 
     @Test

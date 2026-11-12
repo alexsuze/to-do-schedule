@@ -12,6 +12,8 @@ export const useProjectsStore = defineStore('projects', {
   }),
   getters: {
     byId: (s) => (id) => s.list.find(p => p.id === id),
+    // 某家公司的專案（含已封存）
+    ofCompany: (s) => (companyId) => s.list.filter(p => p.company_id === companyId),
     // 未封存的專案（新增 / 編輯任務、篩選用）
     active: (s) => s.list.filter(p => !p.archived),
     // 顯示用：找不到就是無專案
@@ -24,17 +26,18 @@ export const useProjectsStore = defineStore('projects', {
     async load () {
       this.list = (await api.get('/projects')).data
     },
-    async create (name, color) {
-      const { data } = await api.post('/projects', { name, color })
+    async create (name, color, companyId) {
+      const { data } = await api.post('/projects', { name, color, company_id: companyId })
       this.list.push(data)
       saved(`已新增專案「${data.name}」`)
       return data
     },
-    // patch 可含 name / color / archived
+    // patch 可含 name / color / archived / company_id（換公司＝移動專案，任務跟著移，呼叫端需重新載入任務）
     async update (p, patch) {
       const { data } = await api.put(`/projects/${p.id}`, { name: p.name, color: p.color, ...patch })
       this.list.splice(this.list.findIndex(x => x.id === p.id), 1, data)
-      saved(patch.archived === true ? `已封存「${data.name}」` : patch.archived === false ? `已取消封存「${data.name}」` : `已更新專案「${data.name}」`)
+      const moved = patch.company_id && patch.company_id !== p.company_id
+      saved(moved ? `已將「${data.name}」移到其他公司` : patch.archived === true ? `已封存「${data.name}」` : patch.archived === false ? `已取消封存「${data.name}」` : `已更新專案「${data.name}」`)
     },
     // 後端會刪掉專案的分類、把任務改成無專案；呼叫端需重新載入分類與任務
     async remove (id) {

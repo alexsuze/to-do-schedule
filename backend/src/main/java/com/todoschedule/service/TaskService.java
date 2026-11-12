@@ -26,17 +26,20 @@ public class TaskService {
     private final CategoryService categories;
     private final ProjectService projects;
     private final TimeBlockService blocks;
+    private final CompanyService companies;
 
-    public TaskService(TaskRepository repo, CategoryService categories, ProjectService projects, TimeBlockService blocks) {
+    public TaskService(TaskRepository repo, CategoryService categories, ProjectService projects, TimeBlockService blocks,
+                       CompanyService companies) {
         this.repo = repo;
         this.categories = categories;
         this.projects = projects;
         this.blocks = blocks;
+        this.companies = companies;
     }
 
-    /** 新增與編輯共用，編輯為完整覆寫。有分類時專案以分類的專案為準。 */
-    public record TaskRequest(String title, String description, String projectId, String categoryId, Instant startAt, Instant deadline,
-                              List<Subtask> subtasks, Boolean done) {}
+    /** 新增與編輯共用，編輯為完整覆寫。有分類時專案以分類的專案為準；有專案時公司以專案的公司為準（需求書 12.8）。 */
+    public record TaskRequest(String title, String description, String companyId, String projectId, String categoryId, Instant startAt,
+                              Instant deadline, List<Subtask> subtasks, Boolean done) {}
 
     /** droppedBlocks：刪除期間被其他任務佔用、因此沒還原的時段數。 */
     public record RestoreResult(Task task, int droppedBlocks) {}
@@ -99,8 +102,8 @@ public class TaskService {
         purgeTasks(List.of(trashed(userId, id)));
     }
 
-    public void purgeAll(String userId) {
-        purgeTasks(trash(userId));
+    public void purgeAll(String userId, String companyId) {
+        purgeTasks(trash(userId).stream().filter(t -> companyId == null || companyId.equals(t.companyId)).toList());
     }
 
     /** 不分使用者，清除進回收桶滿 30 天的任務。 */
@@ -142,8 +145,21 @@ public class TaskService {
             project = categories.find(t.userId, cat)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "分類不存在，請重新選擇"))
                     .projectId;
-        } else if (project != null) {
-            project = projects.get(t.userId, project).id;
+        }
+        String company;
+        if (project != null) {
+            var p = projects.get(t.userId, project);
+            project = p.id;
+            company = p.companyId;
+        } else {
+            String c = req.companyId() == null || req.companyId().isBlank() ? null : req.companyId();
+            if (c == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "請選擇公司");
+            company = companies.get(t.userId, c).id;
+        }
+        // 換公司：時段跟著過去，撞到新公司的時段就擋下（需求書 12.4）
+        if (t.id != null && !java.util.Objects.equals(t.companyId, company)) {
+            var clash = blocks.clashesIfMoved(t.userId, List.of(t.id), company);
+            if (!clash.isEmpty()) throw TimeBlockService.clashError(clash);
         }
 
         if (req.startAt() != null && req.deadline() != null && req.startAt().isAfter(req.deadline())) {
@@ -152,6 +168,7 @@ public class TaskService {
 
         t.title = title;
         t.description = req.description() == null ? "" : req.description();
+        t.companyId = company;
         t.projectId = project;
         t.categoryId = cat;
         t.startAt = req.startAt();

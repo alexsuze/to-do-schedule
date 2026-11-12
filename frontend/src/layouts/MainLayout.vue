@@ -5,6 +5,7 @@
       <q-toolbar>
         <q-btn flat round icon="menu" aria-label="開啟選單" @click="drawer = !drawer" />
         <q-toolbar-title class="text-weight-bold">工作事項管理</q-toolbar-title>
+        <CompanySwitcher variant="pill" />
       </q-toolbar>
     </q-header>
 
@@ -17,6 +18,10 @@
             <span class="text-weight-bold ellipsis" style="font-size: 18px">工作事項管理</span>
             <span class="text-sub" style="font-size: 13px">今天也慢慢來</span>
           </div>
+        </div>
+
+        <div v-if="!$q.screen.lt.md" class="q-pb-md" :class="{ 'self-center': collapsed }">
+          <CompanySwitcher :variant="collapsed ? 'mini' : 'full'" />
         </div>
 
         <nav aria-label="主選單" class="column q-gutter-y-sm">
@@ -102,6 +107,8 @@ import { useQuasar } from 'quasar'
 import { setDark } from '../utils/theme'
 import { useAuthStore } from '../stores/auth'
 import { useBlocksStore } from '../stores/blocks'
+import { useCompaniesStore } from '../stores/companies'
+import CompanySwitcher from '../components/CompanySwitcher.vue'
 import { startReminder } from '../services/reminder'
 
 const MINI_KEY = 'sidebarMini'
@@ -121,7 +128,11 @@ function toggleMini () {
   try { localStorage.setItem(MINI_KEY, mini.value ? '1' : '0') } catch { /* 不記也能用 */ }
 }
 
-onMounted(() => auth.loadPending())
+const companies = useCompaniesStore()
+onMounted(() => {
+  auth.loadPending()
+  companies.load()
+})
 
 // 工作開始前提醒：點通知回到時程表；這台電腦改了時段就重新讀取
 const router = useRouter()
