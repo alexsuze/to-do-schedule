@@ -30,4 +30,6 @@ test('continuation of the same task is not a new start', () => {
 test('title', () => {
   assert.equal(reminderTitle('寫報告', '公司'), '【公司】寫報告 即將開始')
   assert.equal(reminderTitle('寫報告', ''), '寫報告 即將開始')
+  assert.equal(reminderTitle('寫報告', '官網', 'A 公司'), '〔A 公司〕【官網】寫報告 即將開始')
+  assert.equal(reminderTitle('寫報告', null, 'A 公司'), '〔A 公司〕寫報告 即將開始')
 })

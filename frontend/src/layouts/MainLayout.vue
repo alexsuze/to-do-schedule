@@ -134,10 +134,13 @@ onMounted(() => {
   companies.load()
 })
 
-// 工作開始前提醒：點通知回到時程表；這台電腦改了時段就重新讀取
+// 工作開始前提醒：點通知切到該任務的公司並回到時程表；這台電腦改了時段就重新讀取
 const router = useRouter()
 const blocks = useBlocksStore()
-const stopReminder = startReminder(() => router.push({ name: 'timeline' }), () => blocks.list)
+const stopReminder = startReminder(companyId => {
+  if (companyId && companies.byId(companyId) && !companies.byId(companyId).archived) companies.select(companyId)
+  router.push({ name: 'timeline' })
+}, () => blocks.list)
 onUnmounted(stopReminder)
 
 const NAV = [
