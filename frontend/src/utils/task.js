@@ -47,6 +47,10 @@ export function deadlineLabel (task, now = Date.now()) {
   return formatDateTime(task.deadline)
 }
 
+// 複製任務的標題：原標題_複製；標題上限 100 字，超過就截短原標題
+export const COPY_SUFFIX = '_複製'
+export const copyTitle = title => `${(title || '').slice(0, 100 - COPY_SUFFIX.length)}${COPY_SUFFIX}`
+
 // 開始時間在 end 之前（或沒填＝已開始）；時程表用週末判斷這週要不要列出
 export const startedBefore = (task, end) => !task.start_at || new Date(task.start_at) < end
 

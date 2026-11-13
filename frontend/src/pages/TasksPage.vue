@@ -38,6 +38,9 @@
         <div class="row items-center no-wrap">
           <TaskTag :task="t" :show-company="isAll" />
           <q-space />
+          <q-btn flat round icon="content_copy" class="q-mr-xs" :aria-label="`複製「${t.title}」`" @click.stop="copy(t)">
+            <q-tooltip>複製（帶入公司、專案、分類）</q-tooltip>
+          </q-btn>
           <q-btn
             v-if="t.done" flat round icon="inventory_2" class="q-mr-xs" aria-label="立即封存"
             @click.stop="archive(t)"
@@ -73,7 +76,7 @@
       </article>
     </div>
 
-    <TaskDialog v-model="dialog" :task="editing" :preset-project-id="presetProject" :preset-company-id="isAll ? null : scope" />
+    <TaskDialog v-model="dialog" :task="editing" :copy-from="copySource" :preset-project-id="presetProject" :preset-company-id="isAll ? null : scope" />
   </q-page>
 </template>
 
@@ -144,8 +147,16 @@ async function archive (t) {
 
 const dialog = ref(false)
 const editing = ref(null)
+const copySource = ref(null)
 function open (t) {
   editing.value = t
+  copySource.value = null
+  dialog.value = true
+}
+// 複製：打開新增視窗，預先帶入公司、專案、分類與「原標題_複製」，按儲存才建立
+function copy (t) {
+  editing.value = null
+  copySource.value = t
   dialog.value = true
 }
 

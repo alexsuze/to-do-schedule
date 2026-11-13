@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { isArchived, listedInWeek, notStarted, startedBefore, startLabel, deadlineState, deadlineLabel, sortTasks, subtaskProgress, trashDaysLeft, isoToLocal, localToIso } from './task.js'
+import { copyTitle, isArchived, listedInWeek, notStarted, startedBefore, startLabel, deadlineState, deadlineLabel, sortTasks, subtaskProgress, trashDaysLeft, isoToLocal, localToIso } from './task.js'
 
 const now = new Date('2026-10-28T10:00:00').getTime()
 const at = s => new Date(s).toISOString()
@@ -86,4 +86,12 @@ test('listedInWeek：往後的週不列死線已過的任務，本週照列', ()
   assert.equal(listedInWeek({ deadline: local('2026-11-16T09:00:00').toISOString() }, ...nextWeek, now), true, '死線在那週內')
   assert.equal(listedInWeek({}, ...nextWeek, now), true, '沒死線')
   assert.equal(listedInWeek({ start_at: local('2026-11-30T09:00:00').toISOString() }, ...nextWeek, now), false, '還沒開始')
+})
+
+test('copyTitle：原標題加 _複製，最多 100 字', () => {
+  assert.equal(copyTitle('[會議]11月例會W3'), '[會議]11月例會W3_複製')
+  assert.equal(copyTitle(''), '_複製')
+  const long = 'a'.repeat(100)
+  assert.equal(copyTitle(long).length, 100)
+  assert.ok(copyTitle(long).endsWith('_複製'))
 })
