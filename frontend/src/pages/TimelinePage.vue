@@ -117,7 +117,7 @@ import { useProjectsStore } from '../stores/projects'
 import { useBlocksStore } from '../stores/blocks'
 import { useCompaniesStore } from '../stores/companies'
 import { overlapsAny, splitBlocks } from '../utils/company'
-import { matchProject, sortTasks, startedBefore } from '../utils/task'
+import { listedInWeek, matchProject, sortTasks } from '../utils/task'
 import {
   DEFAULT_RANGE, EXPAND_HOURS, SLOTS_PER_DAY, addDays, blockSlots, formatHours, formatSlot,
   minutesOf, overlaps, sameDay, slotTime, visibleRange, weekStart
@@ -431,8 +431,8 @@ const projectFilter = ref('all')
 watch(cid, () => { projectFilter.value = 'all' })
 const pool = computed(() => {
   const q = (search.value || '').trim().toLowerCase()
-  const end = addDays(ws.value, 7) // 這週結束前已開始的才列出
-  return sortTasks(tasks.tasks.filter(t => !t.done && t.company_id === cid.value && startedBefore(t, end) && matchProject(t, projectFilter.value) && (!q || t.title.toLowerCase().includes(q))))
+  const end = addDays(ws.value, 7) // 這週結束前已開始；往後的週不列死線已過的
+  return sortTasks(tasks.tasks.filter(t => !t.done && t.company_id === cid.value && listedInWeek(t, ws.value, end, now.value) && matchProject(t, projectFilter.value) && (!q || t.title.toLowerCase().includes(q))))
 })
 
 onMounted(() => {

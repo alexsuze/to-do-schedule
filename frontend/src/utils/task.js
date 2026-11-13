@@ -50,6 +50,11 @@ export function deadlineLabel (task, now = Date.now()) {
 // 開始時間在 end 之前（或沒填＝已開始）；時程表用週末判斷這週要不要列出
 export const startedBefore = (task, end) => !task.start_at || new Date(task.start_at) < end
 
+// 時程表左側要不要列出（需求書 3.2）：週 [start, end) 結束前已開始；
+// 看往後的週（週一在現在之後）時，死線早於那週週一的不列。本週與過去的週照列，逾期的還能補排
+export const listedInWeek = (task, start, end, now = Date.now()) =>
+  startedBefore(task, end) && !(start > now && task.deadline && new Date(task.deadline) < start)
+
 // 開始時間還沒到
 export const notStarted = (task, now = Date.now()) => !!task.start_at && new Date(task.start_at) > now
 
