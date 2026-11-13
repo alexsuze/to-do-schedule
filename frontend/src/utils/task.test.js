@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { isArchived, notStarted, startedBefore, startLabel, deadlineState, deadlineLabel, sortTasks, subtaskProgress, trashDaysLeft, isoToLocal, localToIso } from './task.js'
+import { isArchived, listedInWeek, notStarted, startedBefore, startLabel, deadlineState, deadlineLabel, sortTasks, subtaskProgress, trashDaysLeft, isoToLocal, localToIso } from './task.js'
 
 const now = new Date('2026-10-28T10:00:00').getTime()
 const at = s => new Date(s).toISOString()
@@ -69,4 +69,21 @@ test('archived after n days, manual, unarchive restarts the count', () => {
   assert.equal(isArchived({ ...done, unarchived_at: at('2026-10-27T10:00:00') }, 14, now), false)
   assert.equal(isArchived({ done: true, completed_at: at('2026-10-28T09:00:00'), archived_at: at('2026-10-28T09:30:00') }, 14, now), true)
   assert.equal(isArchived({ done: true }, 14, now), false, '沒有完成時間的舊資料不自動封存')
+})
+
+test('listedInWeek：往後的週不列死線已過的任務，本週照列', () => {
+  const local = s => new Date(s)
+  const now = local('2026-11-13T10:00:00').getTime() // 週五
+  const thisWeek = [local('2026-11-09T00:00:00'), local('2026-11-16T00:00:00')]
+  const nextWeek = [local('2026-11-16T00:00:00'), local('2026-11-23T00:00:00')]
+  const lastWeek = [local('2026-11-02T00:00:00'), local('2026-11-09T00:00:00')]
+  const w3 = { start_at: local('2026-11-09T09:00:00').toISOString(), deadline: local('2026-11-13T18:00:00').toISOString() }
+  assert.equal(listedInWeek(w3, ...nextWeek, now), false, '下週：死線 11/13 已在週一前')
+  assert.equal(listedInWeek(w3, ...thisWeek, now), true, '本週照列')
+  const overdue = { deadline: local('2026-11-01T18:00:00').toISOString() }
+  assert.equal(listedInWeek(overdue, ...thisWeek, now), true, '本週：逾期的還能補排')
+  assert.equal(listedInWeek(overdue, ...lastWeek, now), true, '過去的週照列')
+  assert.equal(listedInWeek({ deadline: local('2026-11-16T09:00:00').toISOString() }, ...nextWeek, now), true, '死線在那週內')
+  assert.equal(listedInWeek({}, ...nextWeek, now), true, '沒死線')
+  assert.equal(listedInWeek({ start_at: local('2026-11-30T09:00:00').toISOString() }, ...nextWeek, now), false, '還沒開始')
 })
