@@ -1,9 +1,9 @@
 <template>
-  <!-- 新增 / 編輯任務；task 為 null 時是新增 -->
+  <!-- 新增 / 編輯任務；task 為 null 時是新增；copyFrom 有值時是複製（等同新增，預先帶入公司 / 專案 / 分類） -->
   <q-dialog :model-value="modelValue" @update:model-value="onToggle" @before-show="reset">
     <q-card class="dialog-card">
       <div class="row items-center no-wrap">
-        <div class="font-round text-weight-bold" style="font-size: 26px">{{ task ? '編輯任務' : '新增任務' }}</div>
+        <div class="font-round text-weight-bold" style="font-size: 26px">{{ task ? '編輯任務' : copyFrom ? '複製任務' : '新增任務' }}</div>
         <q-space />
         <q-btn flat round icon="close" aria-label="關閉" v-close-popup />
       </div>
@@ -105,7 +105,7 @@ import { useProjectsStore } from '../stores/projects'
 import { useBlocksStore } from '../stores/blocks'
 import { useCompaniesStore } from '../stores/companies'
 import { initialOf } from '../utils/company'
-import { isoToLocal, localToIso, NO_PROJECT_COLOR, UNCATEGORIZED_COLOR } from '../utils/task'
+import { copyTitle, isoToLocal, localToIso, NO_PROJECT_COLOR, UNCATEGORIZED_COLOR } from '../utils/task'
 import { formatHours } from '../utils/timeline'
 import { resolveUnsaved, useUnsavedGuard } from '../utils/unsaved'
 
@@ -113,7 +113,8 @@ const props = defineProps({
   modelValue: Boolean,
   task: { type: Object, default: null },
   presetProjectId: { type: String, default: null }, // 新增時預先帶入的專案（例如目前篩選的專案）
-  presetCompanyId: { type: String, default: null } // 新增時預先帶入的公司（目前公司；任務頁「全部公司」時為 null）
+  presetCompanyId: { type: String, default: null }, // 新增時預先帶入的公司（目前公司；任務頁「全部公司」時為 null）
+  copyFrom: { type: Object, default: null } // 複製來源（需求書 2.2）：只帶公司、專案、分類與「原標題_複製」
 })
 const emit = defineEmits(['update:modelValue'])
 
@@ -160,6 +161,23 @@ const doneCount = computed(() => form.value.subtasks.filter(s => s.done).length)
 const snapshot = ref('')
 function reset () {
   const t = props.task
+  const c = !t && props.copyFrom
+  if (c) {
+    form.value = {
+      title: copyTitle(c.title),
+      description: '',
+      company_id: c.company_id || null,
+      project_id: c.project_id || null,
+      category_id: c.category_id || null,
+      start_at: '',
+      deadline: '',
+      subtasks: [],
+      done: false
+    }
+    newSub.value = ''
+    snapshot.value = JSON.stringify(form.value) // 沒改直接關閉不問、不建立
+    return
+  }
   const preset = props.presetProjectId ? projects.byId(props.presetProjectId) : null
   form.value = {
     title: t?.title || '',
@@ -213,7 +231,7 @@ async function save (done) {
     await tasks.save({ ...form.value, id: props.task?.id, start_at: start, deadline, done })
     snapshot.value = JSON.stringify(form.value)
     emit('update:modelValue', false)
-    $q.notify({ type: 'positive', message: props.task ? '已儲存' : '已新增任務' })
+    $q.notify({ type: 'positive', message: props.task ? '已儲存' : props.copyFrom ? '已複製任務' : '已新增任務' })
     return true
   } finally {
     saving.value = false
